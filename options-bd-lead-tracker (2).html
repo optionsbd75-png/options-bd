@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Options BD — লিড ও কাস্টমার ট্র্যাকার</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --red:#C8202F; --red-dark:#9E1623; --ink:#201C1C; --bg:#FAF6F0; --card:#FFFFFF;
+    --muted:#7A736C; --line:#EAE1D4;
+    --green:#2F9E44; --green-bg:#E7F6EA;
+    --yellow:#B5790A; --yellow-bg:#FCF1DA;
+    --orange:#C2540F; --orange-bg:#FCE7D8;
+    --crimson:#C8202F; --crimson-bg:#FBE4E6;
+    --blue:#1565C0; --blue-bg:#E3EEFB;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--ink); font-family:'Noto Sans Bengali','Noto Sans',sans-serif;
+    -webkit-font-smoothing:antialiased; min-height:100vh;
+  }
+  ::selection{background:var(--red);color:#fff;}
+  #app{display:none;padding-bottom:96px;}
+
+  /* ---------- Lock screen ---------- */
+  #lockScreen{
+    position:fixed;inset:0;background:linear-gradient(160deg,var(--red) 0%, var(--red-dark) 100%);
+    z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    color:#fff;padding:24px;text-align:center;
+  }
+  .lock-mark{width:60px;height:60px;border-radius:16px;background:#fff;color:var(--red);
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:26px;margin-bottom:18px;}
+  #lockScreen h2{font-size:18px;margin:0 0 6px;font-weight:800;}
+  #lockScreen p{font-size:12.5px;opacity:.85;margin:0 0 22px;max-width:280px;}
+  .pin-dots{display:flex;gap:14px;margin-bottom:26px;}
+  .pin-dot{width:15px;height:15px;border-radius:50%;border:2px solid #fff;background:transparent;transition:background .15s;}
+  .pin-dot.filled{background:#fff;}
+  .pin-dot.err{border-color:#FFD2D2;background:#FFD2D2;}
+  .keypad{display:grid;grid-template-columns:repeat(3,64px);gap:14px;}
+  .key{
+    width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.14);
+    color:#fff;font-size:22px;font-weight:700;border:none;font-family:inherit;
+  }
+  .key:active{background:rgba(255,255,255,.3);}
+  .key.empty{background:transparent;}
+  .lock-msg{font-size:12px;margin-top:16px;min-height:16px;opacity:.9;}
+  .lock-switch{margin-top:18px;font-size:12px;text-decoration:underline;opacity:.8;}
+
+  /* ---------- Header ---------- */
+  header{
+    background:linear-gradient(135deg,var(--red) 0%, var(--red-dark) 100%); color:#fff;
+    padding:22px 18px 26px; position:relative; overflow:hidden;
+  }
+  header::after{content:"";position:absolute;left:0;right:0;bottom:0;height:7px;
+    background-image:repeating-linear-gradient(90deg,#fff 0 10px, transparent 10px 20px); opacity:.45;}
+  .brand-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .brand-left{display:flex;align-items:center;gap:10px;}
+  .brand-mark{width:34px;height:34px;border-radius:9px;background:#fff;display:flex;align-items:center;
+    justify-content:center;font-weight:800;color:var(--red);font-size:15px;flex-shrink:0;}
+  .brand-text{font-size:13px;letter-spacing:.04em;opacity:.92;font-weight:600;}
+  .lock-btn{background:rgba(255,255,255,.18);border:none;color:#fff;border-radius:9px;padding:7px 8px;font-size:10.5px;font-family:inherit;font-weight:700;white-space:nowrap;}
+  h1{font-size:20px;margin:10px 0 2px;font-weight:800;letter-spacing:.01em;}
+  .sub{font-size:12.5px;opacity:.85;font-weight:500;}
+
+  /* ---------- Tabs ---------- */
+  .tabs{display:flex;gap:8px;padding:14px 14px 0;margin-top:-14px;}
+  .tab{
+    flex:1;background:var(--card);border:2px solid var(--line);border-radius:12px;
+    padding:10px 6px;text-align:center;font-size:12.5px;font-weight:700;color:var(--muted);
+    box-shadow:0 4px 14px rgba(32,28,28,.06);
+  }
+  .tab.on{border-color:var(--red);color:var(--red);background:#fff;}
+
+  .mini-total{text-align:center;font-size:11.5px;color:var(--muted);padding:10px 14px 0;}
+
+  /* ---------- Dashboard ---------- */
+  .section-head{display:flex;align-items:center;justify-content:space-between;padding:18px 16px 8px;}
+  .section-head h2{font-size:14.5px;font-weight:700;margin:0;}
+  .sort-note{font-size:11px;color:var(--muted);}
+  .dash{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;padding:0 14px;}
+  .stat{
+    background:var(--card);border-radius:var(--radius);padding:13px 14px;
+    box-shadow:0 4px 14px rgba(32,28,28,.07);border:2px solid var(--line);
+    cursor:pointer;transition:transform .1s, border-color .15s;
+  }
+  .stat:active{transform:scale(.97);}
+  .stat .num{font-size:25px;font-weight:800;line-height:1;}
+  .stat .lab{font-size:11px;color:var(--muted);margin-top:5px;font-weight:600;}
+  .stat.c-call .num,.stat.is-active.c-call{color:#1E2A3A;border-color:#1E2A3A;}
+  .stat.c-msg .num,.stat.is-active.c-msg{color:var(--blue);border-color:var(--blue);}
+  .stat.c-product .num,.stat.is-active.c-product{color:#9C5B0E;border-color:#9C5B0E;}
+  .stat.c-react .num,.stat.is-active.c-react{color:var(--crimson);border-color:var(--crimson);}
+  .stat.c-checkin .num,.stat.is-active.c-checkin{color:var(--yellow);border-color:var(--yellow);}
+  .stat.c-cold .num,.stat.is-active.c-cold{color:var(--orange);border-color:var(--orange);}
+
+  .filter-hint{margin:10px 14px 0;padding:9px 13px;background:var(--ink);color:#fff;
+    border-radius:11px;font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:space-between;}
+  .filter-hint span.clear{font-weight:700;text-decoration:underline;}
+
+  .backup-row{display:flex;gap:9px;padding:16px 14px 0;}
+  .btn-backup{flex:1;background:var(--card);color:var(--ink);border:1.5px solid var(--line);
+    padding:10px 8px;border-radius:11px;font-size:12px;font-weight:700;justify-content:center;}
+  .backup-hint{text-align:center;font-size:11px;color:var(--muted);padding:6px 14px 0;}
+
+  .search-wrap{padding:14px 14px 0;}
+  .search-wrap input{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;
+    font-family:inherit;font-size:14px;background:var(--card);color:var(--ink);}
+  .search-wrap input:focus{outline:none;border-color:var(--red);}
+
+  /* ---------- Lead list ---------- */
+  #leadList{padding:0 14px;display:flex;flex-direction:column;gap:10px;}
+  .lead-card{background:var(--card);border-radius:var(--radius);border:1px solid var(--line);
+    padding:14px;box-shadow:0 3px 10px rgba(32,28,28,.05);}
+  .lead-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .lead-name{font-size:15px;font-weight:700;}
+  .lead-phone{font-size:12px;color:var(--muted);margin-top:2px;}
+  .type-chip{font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-top:5px;display:inline-block;}
+  .type-chip.lead{background:var(--blue-bg);color:var(--blue);}
+  .type-chip.cust{background:var(--green-bg);color:var(--green);}
+  .badge{font-size:11px;font-weight:700;padding:4px 9px;border-radius:99px;white-space:nowrap;}
+  .badge.green{background:var(--green-bg);color:var(--green);}
+  .badge.yellow{background:var(--yellow-bg);color:var(--yellow);}
+  .badge.orange{background:var(--orange-bg);color:var(--orange);}
+  .badge.crimson{background:var(--crimson-bg);color:var(--crimson);}
+  .lead-meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:9px;font-size:12px;color:var(--muted);}
+  .lead-meta b{color:var(--ink);font-weight:600;}
+  .next-action{margin-top:10px;background:var(--bg);border:1px dashed var(--line);border-radius:10px;
+    padding:8px 10px;font-size:12.5px;font-weight:600;}
+  .next-action span.lbl{color:var(--muted);font-weight:500;margin-right:4px;}
+  .lead-actions{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap;}
+  .btn{border:none;border-radius:9px;padding:8px 12px;font-size:12.5px;font-weight:700;
+    font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:5px;text-decoration:none;}
+  .btn-call{background:#1E2A3A;color:#fff;}
+  .btn-wa{background:#1FA855;color:#fff;}
+  .btn-today{background:var(--ink);color:#fff;}
+  .btn-edit{background:var(--line);color:var(--ink);}
+  .btn-copy{background:#3D3540;color:#fff;}
+  .btn-del{background:transparent;color:var(--crimson);padding:8px 8px;}
+
+  .empty{text-align:center;padding:50px 24px;color:var(--muted);}
+  .empty .big{font-size:34px;margin-bottom:6px;}
+  .empty .cta-text{font-size:13.5px;margin-top:6px;}
+
+  .fab{position:fixed;right:18px;bottom:22px;background:var(--red);color:#fff;border:none;
+    border-radius:99px;padding:15px 20px;font-family:inherit;font-weight:700;font-size:14px;
+    box-shadow:0 8px 20px rgba(200,32,47,.4);display:flex;align-items:center;gap:7px;z-index:40;cursor:pointer;}
+
+  .overlay{position:fixed;inset:0;background:rgba(32,28,28,.5);display:none;align-items:flex-end;
+    justify-content:center;z-index:50;}
+  .overlay.show{display:flex;}
+  .sheet{background:var(--card);width:100%;max-width:480px;border-radius:20px 20px 0 0;
+    max-height:90vh;overflow-y:auto;padding:18px 18px 26px;animation:slideup .22s ease-out;}
+  @keyframes slideup{from{transform:translateY(24px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+  .sheet h3{margin:2px 0 16px;font-size:17px;font-weight:800;}
+  .field{margin-bottom:13px;}
+  .field label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:5px;}
+  .field input,.field select,.field textarea{width:100%;padding:10px 11px;border:1.5px solid var(--line);
+    border-radius:10px;font-family:inherit;font-size:14px;background:var(--bg);color:var(--ink);}
+  .field textarea{resize:vertical;min-height:60px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .seg{display:flex;gap:8px;}
+  .seg button{flex:1;padding:11px 6px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);
+    font-family:inherit;font-weight:700;font-size:13px;color:var(--muted);}
+  .seg button.on{border-color:var(--red);color:var(--red);background:#fff;}
+  .modal-actions{display:flex;gap:10px;margin-top:18px;}
+  .btn-save{flex:1;background:var(--red);color:#fff;padding:13px;border-radius:11px;font-size:14.5px;}
+  .btn-cancel{flex:0 0 auto;background:var(--line);color:var(--ink);padding:13px 18px;border-radius:11px;font-size:14.5px;}
+
+  .loading{padding:40px;text-align:center;color:var(--muted);font-size:13px;}
+  .footnote{text-align:center;padding:10px 24px 4px;font-size:11px;color:var(--muted);}
+</style>
+</head>
+<body>
+
+<div id="lockScreen">
+  <div class="lock-mark">✓</div>
+  <h2 id="lockTitle">PIN দিন</h2>
+  <p id="lockSub">Options BD ট্র্যাকার দেখতে তোমার ৪-সংখ্যার PIN দাও</p>
+  <div class="pin-dots" id="pinDots">
+    <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+  </div>
+  <div class="keypad" id="keypad">
+    <button class="key" data-k="1">1</button><button class="key" data-k="2">2</button><button class="key" data-k="3">3</button>
+    <button class="key" data-k="4">4</button><button class="key" data-k="5">5</button><button class="key" data-k="6">6</button>
+    <button class="key" data-k="7">7</button><button class="key" data-k="8">8</button><button class="key" data-k="9">9</button>
+    <button class="key empty"></button><button class="key" data-k="0">0</button><button class="key" id="keyBack">⌫</button>
+  </div>
+  <div class="lock-msg" id="lockMsg"></div>
+</div>
+
+<div id="app">
+<header>
+  <div class="brand-row">
+    <div class="brand-left">
+      <div class="brand-mark">✓</div>
+      <div class="brand-text">OPTIONS BD</div>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button class="lock-btn" id="lockNowBtn">🔒 লক করো</button>
+      <button class="lock-btn" id="changePinBtn">🔑 PIN বদলাও</button>
+    </div>
+  </div>
+  <h1>লিড ও কাস্টমার ট্র্যাকার</h1>
+  <div class="sub" id="todayLabel">—</div>
+</header>
+
+<div class="tabs">
+  <button class="tab on" id="tabLead" onclick="setTab('লিড')">লিড</button>
+  <button class="tab" id="tabCust" onclick="setTab('নিয়মিত কাস্টমার')">নিয়মিত কাস্টমার</button>
+  <button class="tab" id="tabAll" onclick="setTab('সব')">সব</button>
+</div>
+<div class="mini-total" id="miniTotal">—</div>
+
+<div id="dashLead">
+  <div class="section-head"><h2>আজকের কাজ — লিড</h2><div class="sort-note">ট্যাপ করো</div></div>
+  <div class="dash">
+    <div class="stat c-call" data-filter="action:কল করো" onclick="setFilter('action:কল করো','📞 কল করুন')"><div class="num" id="statCall">0</div><div class="lab">📞 কল করুন</div></div>
+    <div class="stat c-msg" data-filter="action:MSG" onclick="setFilter('action:MSG','💬 মেসেজ পাঠান')"><div class="num" id="statMsg">0</div><div class="lab">💬 মেসেজ পাঠান</div></div>
+    <div class="stat c-product" data-filter="price:না" onclick="setFilter('price:না','📦 প্রোডাক্ট/দাম পাঠান')"><div class="num" id="statProduct">0</div><div class="lab">📦 প্রোডাক্ট/দাম পাঠান</div></div>
+    <div class="stat c-react" data-filter="action:পুনঃসক্রিয়করণ ক্যাম্পেইনে যোগ করো" onclick="setFilter('action:পুনঃসক্রিয়করণ ক্যাম্পেইনে যোগ করো','🔄 পুনঃসক্রিয়করণ')"><div class="num" id="statReact">0</div><div class="lab">🔄 পুনঃসক্রিয়করণ</div></div>
+  </div>
+</div>
+
+<div id="dashCust">
+  <div class="section-head"><h2>আজকের কাজ — নিয়মিত কাস্টমার</h2><div class="sort-note">ট্যাপ করো</div></div>
+  <div class="dash">
+    <div class="stat c-checkin" data-filter="action:খোঁজ নিন / নতুন স্টক জানান" onclick="setFilter('action:খোঁজ নিন / নতুন স্টক জানান','🟡 খোঁজ নেওয়ার সময়')"><div class="num" id="statCheckin">0</div><div class="lab">🟡 খোঁজ নেওয়ার সময়</div></div>
+    <div class="stat c-cold" data-filter="action:সরাসরি যোগাযোগ করো" onclick="setFilter('action:সরাসরি যোগাযোগ করো','🔴 সম্পর্ক ঠান্ডা হচ্ছে')"><div class="num" id="statCold">0</div><div class="lab">🔴 সম্পর্ক ঠান্ডা হচ্ছে</div></div>
+  </div>
+</div>
+
+<div class="filter-hint" id="filterHint" style="display:none;"></div>
+
+<div class="backup-row">
+  <button class="btn btn-backup" id="exportBtn">⬇ ব্যাকআপ ডাউনলোড</button>
+  <button class="btn btn-backup" id="importBtn">⬆ ব্যাকআপ থেকে ফেরত আনো</button>
+  <input type="file" id="importFile" accept="application/json" style="display:none;">
+</div>
+<div class="backup-hint" id="backupHint">শেষ ব্যাকআপ: —</div>
+
+<div class="search-wrap"><input type="text" id="searchBox" placeholder="🔍 নাম, ফোন নম্বর বা প্রোডাক্ট দিয়ে খুঁজো..."></div>
+
+<div class="section-head"><h2 id="listTitle">সব লিড</h2><div class="sort-note">সবচেয়ে জরুরি প্রথমে</div></div>
+<div id="leadList"><div class="loading">লোড হচ্ছে…</div></div>
+<div style="height:90px;"></div>
+
+<button class="fab" id="addBtn">＋ নতুন</button>
+
+<div class="footnote">ডেটা এই ফোনের Chrome ব্রাউজারেই সেভ থাকে। মাঝে মাঝে ব্যাকআপ ফাইল নিয়ে রাখো।</div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <h3 id="formTitle">নতুন যোগ করুন</h3>
+    <input type="hidden" id="editId">
+    <div class="field"><label>ধরন</label>
+      <div class="seg" id="typeSeg">
+        <button type="button" data-t="লিড" class="on" onclick="pickType('লিড')">লিড</button>
+        <button type="button" data-t="নিয়মিত কাস্টমার" onclick="pickType('নিয়মিত কাস্টমার')">নিয়মিত কাস্টমার</button>
+      </div>
+    </div>
+    <div class="field"><label>নাম</label><input id="f_name" placeholder="যেমন: রহিম ভাই, শোরুম মালিক"></div>
+    <div class="field"><label>ফোন নম্বর</label><input id="f_phone" placeholder="01XXXXXXXXX"></div>
+    <div class="field"><label>প্রোডাক্ট আগ্রহ</label><input id="f_product" placeholder="যেমন: শার্ট, ফুল-স্লিভ"></div>
+    <div class="row2">
+      <div class="field"><label>প্রথম যোগাযোগ</label><input type="date" id="f_first"></div>
+      <div class="field"><label>শেষ যোগাযোগ</label><input type="date" id="f_last"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>ভেরিফাইড</label><select id="f_verified"><option value="হ্যাঁ">হ্যাঁ</option><option value="না">না</option></select></div>
+      <div class="field"><label>দাম জানানো হয়েছে</label><select id="f_price"><option value="না">না</option><option value="হ্যাঁ">হ্যাঁ</option></select></div>
+    </div>
+    <div class="field"><label>অর্ডার স্ট্যাটাস</label>
+      <select id="f_order"><option>অর্ডার হয়নি</option><option>আলোচনা চলছে</option><option>কনভার্ট হয়েছে</option><option>আগ্রহী না</option></select>
+    </div>
+    <div class="field"><label>নোট / কারণ</label><textarea id="f_notes" placeholder="যেমন: দাম বেশি মনে হয়েছে, নতুন স্টক পছন্দ হয়েছে, ইত্যাদি"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="cancelBtn">বাতিল</button>
+      <button class="btn btn-save" id="saveBtn">সংরক্ষণ করুন</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="pinOverlay">
+  <div class="sheet">
+    <h3>PIN পরিবর্তন করো</h3>
+    <div class="field"><label>নতুন ৪-সংখ্যার PIN</label><input type="tel" maxlength="4" id="newPin1" placeholder="০০০০"></div>
+    <div class="field"><label>আবার লিখো</label><input type="tel" maxlength="4" id="newPin2" placeholder="০০০০"></div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="pinCancelBtn">বাতিল</button>
+      <button class="btn btn-save" id="pinSaveBtn">সংরক্ষণ করুন</button>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const STORE_KEY = 'obd_leads_v3';
+const PIN_KEY = 'obd_pin';
+let leads = [];
+let activeTab = 'লিড';
+let currentFilter = 'all';
+let currentFilterLabel = 'সব';
+let searchQuery = '';
+
+/* ===================== PIN LOCK ===================== */
+let pinBuffer = '';
+let pinStage = localStorage.getItem(PIN_KEY) ? 'enter' : 'setup1';
+let firstPin = '';
+
+function renderLockTitle(){
+  const t = document.getElementById('lockTitle');
+  const s = document.getElementById('lockSub');
+  if(pinStage==='setup1'){ t.textContent='PIN সেট করো'; s.textContent='প্রথমবার — তোমার ৪-সংখ্যার PIN বেছে নাও'; }
+  else if(pinStage==='setup2'){ t.textContent='আবার লিখো'; s.textContent='নিশ্চিত করতে আবার একই PIN দাও'; }
+  else { t.textContent='PIN দিন'; s.textContent='Options BD ট্র্যাকার দেখতে PIN দাও'; }
+}
+function renderDots(err){
+  const wrap = document.getElementById('pinDots');
+  wrap.innerHTML = '';
+  for(let i=0;i<4;i++){
+    const d = document.createElement('div');
+    d.className = 'pin-dot' + (i<pinBuffer.length?' filled':'') + (err?' err':'');
+    wrap.appendChild(d);
+  }
+}
+function lockMsg(m){ document.getElementById('lockMsg').textContent = m||''; }
+
+document.getElementById('keypad').addEventListener('click', e=>{
+  const btn = e.target.closest('.key');
+  if(!btn) return;
+  if(btn.id==='keyBack'){ pinBuffer = pinBuffer.slice(0,-1); renderDots(); lockMsg(''); return; }
+  if(btn.dataset.k===undefined) return;
+  if(pinBuffer.length>=4) pinBuffer = '';
+  pinBuffer += btn.dataset.k;
+  renderDots();
+  lockMsg('');
+  if(pinBuffer.length===4) setTimeout(handlePinComplete, 150);
+});
+
+function handlePinComplete(){
+  if(pinStage==='setup1'){
+    firstPin = pinBuffer;
+    pinBuffer=''; pinStage='setup2'; renderLockTitle(); renderDots(); lockMsg('');
+  } else if(pinStage==='setup2'){
+    if(pinBuffer===firstPin){
+      localStorage.setItem(PIN_KEY, pinBuffer);
+      unlockApp();
+    } else {
+      lockMsg('PIN মেলেনি — আবার শুরু করো');
+      renderDots(true);
+      setTimeout(()=>{ pinBuffer=''; firstPin=''; pinStage='setup1'; renderLockTitle(); renderDots(); }, 700);
+    }
+  } else {
+    const saved = localStorage.getItem(PIN_KEY);
+    if(pinBuffer===saved){
+      unlockApp();
+    } else {
+      lockMsg('ভুল PIN, আবার চেষ্টা করো');
+      renderDots(true);
+      setTimeout(()=>{ pinBuffer=''; renderDots(); }, 600);
+    }
+  }
+}
+
+function unlockApp(){
+  document.getElementById('lockScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  pinBuffer = '';
+  initAppOnce();
+}
+
+function lockApp(){
+  pinBuffer=''; pinStage = localStorage.getItem(PIN_KEY) ? 'enter' : 'setup1';
+  renderLockTitle(); renderDots(); lockMsg('');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('lockScreen').style.display = 'flex';
+}
+
+renderLockTitle();
+renderDots();
+
+/* ===================== APP ===================== */
+let appInited = false;
+function initAppOnce(){
+  if(appInited) return;
+  appInited = true;
+  loadLeads();
+  updateBackupHint();
+}
+
+const banglaDigits = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
+function toBn(n){ return String(n).replace(/[0-9]/g, d => banglaDigits[d]); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function daysSince(dateStr){
+  if(!dateStr) return null;
+  const last = new Date(dateStr + 'T00:00:00');
+  const now = new Date();
+  const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.floor((todayMid - last) / 86400000);
+}
+
+function statusFor(days, type){
+  if(days===null) return {label:'তথ্য নেই', cls:'yellow'};
+  if(type==='নিয়মিত কাস্টমার'){
+    if(days<=14) return {label:'সম্পর্ক সচল', cls:'green'};
+    if(days<=44) return {label:'খোঁজ নেওয়ার সময়', cls:'yellow'};
+    return {label:'সম্পর্ক ঠান্ডা হচ্ছে', cls:'orange'};
+  }
+  if(days<=4) return {label:'সক্রিয়', cls:'green'};
+  if(days<=14) return {label:'ফলো-আপ প্রয়োজন', cls:'yellow'};
+  if(days<=29) return {label:'নিষ্ক্রিয়', cls:'orange'};
+  return {label:'পুনঃসক্রিয় করা দরকার', cls:'crimson'};
+}
+function nextActionFor(days, type){
+  if(days===null) return 'শেষ যোগাযোগের তারিখ দিন';
+  if(type==='নিয়মিত কাস্টমার'){
+    if(days<=14) return 'অপেক্ষা করো';
+    if(days<=44) return 'খোঁজ নিন / নতুন স্টক জানান';
+    return 'সরাসরি যোগাযোগ করো';
+  }
+  if(days<=3) return 'অপেক্ষা করো';
+  if(days<=7) return 'Soft follow-up মেসেজ পাঠাও';
+  if(days<=14) return 'কল করো';
+  if(days<=29) return 'শেষ ফলো-আপ মেসেজ পাঠাও';
+  return 'পুনঃসক্রিয়করণ ক্যাম্পেইনে যোগ করো';
+}
+function messageFor(action, product, type){
+  if(type==='নিয়মিত কাস্টমার'){
+    if(action==='সরাসরি যোগাযোগ করো')
+      return 'আসসালামু আলাইকুম, কেমন আছেন? অনেকদিন কথা হয়নি। নতুন কিছু ডিজাইন/স্টক এসেছে, দেখতে চাইলে জানাবেন।';
+    return 'আসসালামু আলাইকুম, কেমন আছেন? নতুন কিছু ডিজাইন/স্টক এসেছে — দেখতে চাইলে জানাবেন।';
+  }
+  const p = product && product.trim() ? product.trim() : 'প্রোডাক্ট';
+  if(action==='Soft follow-up মেসেজ পাঠাও')
+    return 'আসসালামু আলাইকুম। আগের কথার পর কোনো আপডেট পেলাম না। এখনো প্রয়োজন আছে কি? জানালে সাহায্য করতে পারি।';
+  if(action==='কল করো')
+    return 'আসসালামু আলাইকুম। কয়েকবার ফোন করেও কথা বলতে পারিনি। সুবিধামতো কখন কথা বলা যাবে একটু জানাবেন?';
+  if(action==='শেষ ফলো-আপ মেসেজ পাঠাও')
+    return 'আসসালামু আলাইকুম। শেষবারের মতো জানতে চাচ্ছি — এখনো আগ্রহ থাকলে জানাবেন, নাহলে আর বিরক্ত করব না।';
+  if(action==='পুনঃসক্রিয়করণ ক্যাম্পেইনে যোগ করো')
+    return `আসসালামু আলাইকুম ভাই। কিছুদিন আগে আপনি ${p} নিয়ে কথা বলেছিলেন। এখনো প্রয়োজন আছে, নাকি অন্য জায়গা থেকে নিয়ে নিয়েছেন? জানালে নতুন design/stock অনুযায়ী সাহায্য করতে পারব।`;
+  return 'আসসালামু আলাইকুম। কেমন আছেন? কোনো সাহায্য লাগলে জানাবেন।';
+}
+function formatDate(iso){
+  if(!iso) return '—';
+  const months = ['জানু','ফেব্রু','মার্চ','এপ্রিল','মে','জুন','জুলাই','আগস্ট','সেপ্ট','অক্টো','নভে','ডিসে'];
+  const d = new Date(iso + 'T00:00:00');
+  return `${toBn(d.getDate())} ${months[d.getMonth()]} ${toBn(d.getFullYear())}`;
+}
+function normalizePhone(phone){
+  let p = (phone||'').replace(/[^0-9]/g,'');
+  if(p.startsWith('880')) return p;
+  if(p.startsWith('0')) return '880' + p.slice(1);
+  return p;
+}
+
+async function loadLeads(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    leads = raw ? JSON.parse(raw) : null;
+  }catch(e){ leads = null; }
+  if(!leads){
+    leads = [
+      {
+        id:'s1', type:'লিড',
+        name:'Bhai (Rangpur, ৩ শোরুম)',
+        phone:'01713515204',
+        product:'শার্ট (ফুল-স্লিভ) / শর্ট-স্লিভ জিজ্ঞাসা',
+        verified:'হ্যাঁ', first:'2026-05-07', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'অর্ডার হয়নি',
+        notes:'মে-তে অফিস ভিজিটের কথা বলেছিল, আসেনি। ঈদের কারণে গ্যাপ। জুনে আবার শর্ট-স্লিভ/পোলো জিজ্ঞেস করেছে।'
+      },
+      {
+        id:'s2', type:'লিড',
+        name:'আলামিন ভাই',
+        phone:'+880 1722-798948',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-05-07', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'WhatsApp-এ যোগাযোগ চলছে'
+      },
+      {
+        id:'s3', type:'লিড',
+        name:'মোঃ রাশেদ পারভেজ BG exclusive collection, muk...',
+        phone:'+880 1915-399591',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-05-09', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'কোন কিছুই জানায়নি সাইলেন্ট আছে'
+      },
+      {
+        id:'s4', type:'লিড',
+        name:'আকাশ সাহা (নারায়ণগঞ্জ)',
+        phone:'+880 1772-300232',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-05-08', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'জানাবে বলেছে এবং তাকে ফোন করা হয়েছিল, সবকিছু তার ডিলেট হয়ে গেছে শুধু ফোন নাম্বার আছে'
+      },
+      {
+        id:'s5', type:'লিড',
+        name:'মোঃ সাইদুজ্জামান (রু ডেনিম বে শপিং সেন্টার চিটাগং)',
+        phone:'+880 1642-728292',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-05-06', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'আসার কথা বলেছে সাইলেন্ট থাকে'
+      },
+      {
+        id:'s6', type:'লিড',
+        name:'মোহাম্মদ রাশেদুল (এক্সো পো)',
+        phone:'+880 1760-226622',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-05-10', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'সাইলেন্ট থাকে'
+      },
+      {
+        id:'s7', type:'লিড',
+        name:'মোহাম্মদ কালাম ভাই কুমিল্লা',
+        phone:'+880 1319-086371',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-05-06', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'সাইলেন্ট আগ্রহ ছিল'
+      },
+      {
+        id:'s8', type:'লিড',
+        name:'শাহিনা আক্তার উত্তরা',
+        phone:'+880 1722-267176',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-05-11', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'রেসপন্স করে না'
+      },
+      {
+        id:'s9', type:'লিড',
+        name:'মোহাম্মদ আসাদুজ্জামান আল আমিন',
+        phone:'+880 1710-260582',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-06-18', last:'2026-06-22',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'কম রেসপন্স কম'
+      }
+    ];
+    await saveLeads();
+  }
+  render();
+}
+async function saveLeads(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(leads)); }catch(e){ console.error('save failed', e); }
+}
+
+function setTab(t){
+  activeTab = t;
+  document.getElementById('tabLead').classList.toggle('on', t==='লিড');
+  document.getElementById('tabCust').classList.toggle('on', t==='নিয়মিত কাস্টমার');
+  document.getElementById('tabAll').classList.toggle('on', t==='সব');
+  document.getElementById('dashLead').style.display = (t==='লিড' || t==='সব') ? 'block' : 'none';
+  document.getElementById('dashCust').style.display = (t==='নিয়মিত কাস্টমার' || t==='সব') ? 'block' : 'none';
+  currentFilter='all'; currentFilterLabel='সব';
+  render();
+}
+
+function setFilter(f, label){
+  currentFilter = f; currentFilterLabel = label || f;
+  render();
+  document.getElementById('leadList').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function setTodayLabel(){ document.getElementById('todayLabel').textContent = 'আজ: ' + formatDate(todayISO()); }
+
+function render(){
+  setTodayLabel();
+  const byTab = activeTab==='সব' ? leads : leads.filter(l=>(l.type||'লিড')===activeTab);
+
+  let counts = {call:0, msg:0, product:0, react:0, checkin:0, cold:0};
+  const enriched = leads.map(l=>{
+    const type = l.type || 'লিড';
+    const d = daysSince(l.last);
+    const st = statusFor(d, type);
+    const act = nextActionFor(d, type);
+    if(type==='লিড'){
+      if(act==='কল করো') counts.call++;
+      if(act==='Soft follow-up মেসেজ পাঠাও' || act==='শেষ ফলো-আপ মেসেজ পাঠাও') counts.msg++;
+      if(l.priceQuoted==='না' && l.order!=='আলোচনা চলছে' && l.order!=='কনভার্ট হয়েছে') counts.product++;
+      if(act==='পুনঃসক্রিয়করণ ক্যাম্পেইনে যোগ করো') counts.react++;
+    } else {
+      if(act==='খোঁজ নিন / নতুন স্টক জানান') counts.checkin++;
+      if(act==='সরাসরি যোগাযোগ করো') counts.cold++;
+    }
+    return {...l, type, days:d, status:st, action:act};
+  });
+
+  document.getElementById('statCall').textContent = toBn(counts.call);
+  document.getElementById('statMsg').textContent = toBn(counts.msg);
+  document.getElementById('statProduct').textContent = toBn(counts.product);
+  document.getElementById('statReact').textContent = toBn(counts.react);
+  document.getElementById('statCheckin').textContent = toBn(counts.checkin);
+  document.getElementById('statCold').textContent = toBn(counts.cold);
+
+  const leadCount = leads.filter(l=>(l.type||'লিড')==='লিড').length;
+  const custCount = leads.filter(l=>l.type==='নিয়মিত কাস্টমার').length;
+  document.getElementById('miniTotal').textContent = `মোট ${toBn(leads.length)} জন — লিড ${toBn(leadCount)}, নিয়মিত কাস্টমার ${toBn(custCount)}`;
+
+  document.querySelectorAll('.stat').forEach(el=>{
+    el.classList.toggle('is-active', el.dataset.filter===currentFilter);
+  });
+
+  const filterHint = document.getElementById('filterHint');
+  const listTitle = document.getElementById('listTitle');
+  if(currentFilter==='all'){
+    filterHint.style.display = 'none';
+  } else {
+    filterHint.style.display = 'flex';
+    filterHint.innerHTML = `ফিল্টার: <b>${currentFilterLabel}</b> <span class="clear" onclick="setFilter('all','সব')">✕ সব দেখাও</span>`;
+  }
+
+  let working = activeTab==='সব' ? enriched : enriched.filter(l=>l.type===activeTab);
+  if(currentFilter.startsWith('status:')){
+    working = working.filter(l=>l.status.label===currentFilter.slice(7));
+  } else if(currentFilter==='action:MSG'){
+    working = working.filter(l=>l.action==='Soft follow-up মেসেজ পাঠাও' || l.action==='শেষ ফলো-আপ মেসেজ পাঠাও');
+  } else if(currentFilter.startsWith('action:')){
+    working = working.filter(l=>l.action===currentFilter.slice(7));
+  } else if(currentFilter.startsWith('price:')){
+    const v = currentFilter.slice(6);
+    working = working.filter(l=>l.priceQuoted===v && l.order!=='আলোচনা চলছে' && l.order!=='কনভার্ট হয়েছে');
+  }
+  if(searchQuery.trim()){
+    const q = searchQuery.trim().toLowerCase();
+    working = working.filter(l=>(l.name||'').toLowerCase().includes(q) || (l.phone||'').toLowerCase().includes(q) || (l.product||'').toLowerCase().includes(q));
+  }
+
+  listTitle.textContent = (currentFilter==='all' && !searchQuery.trim()) ? (activeTab==='সব'?'সব এন্ট্রি':activeTab) : `${toBn(working.length)} টা পাওয়া গেছে`;
+
+  const order = {crimson:0, orange:1, yellow:2, green:3};
+  working.sort((a,b)=>{
+    const oa = order[a.status.cls] ?? 4, ob = order[b.status.cls] ?? 4;
+    if(oa!==ob) return oa-ob;
+    return (b.days??0) - (a.days??0);
+  });
+
+  const list = document.getElementById('leadList');
+  if(byTab.length===0){
+    list.innerHTML = `<div class="empty"><div class="big">📋</div><div>এই ক্যাটাগরিতে এখনো কিছু যোগ করা হয়নি</div><div class="cta-text">নিচের "+ নতুন" বাটনে চেপে যোগ করো</div></div>`;
+    return;
+  }
+  if(working.length===0){
+    list.innerHTML = `<div class="empty"><div class="big">🔍</div><div>এই ফিল্টার/খোঁজে কিছু পাওয়া যায়নি</div></div>`;
+    return;
+  }
+
+  list.innerHTML = working.map(l=>{
+    const waPhone = normalizePhone(l.phone);
+    const daysLabel = l.days===null ? '—' : toBn(l.days) + ' দিন আগে';
+    const waMsg = encodeURIComponent(messageFor(l.action, l.product, l.type));
+    return `    <div class="lead-card">
+      <div class="lead-top">
+        <div>
+          <div class="lead-name">${esc(l.name)||'নাম নেই'}</div>
+          <div class="lead-phone">${esc(l.phone)||'—'}</div>
+          <span class="type-chip ${l.type==='নিয়মিত কাস্টমার'?'cust':'lead'}">${l.type}</span>
+        </div>
+        <span class="badge ${l.status.cls}">${l.status.label}</span>
+      </div>
+      <div class="lead-meta">
+        <div>🧵 <b>${esc(l.product)||'—'}</b></div>
+        <div>শেষ যোগাযোগ: <b>${daysLabel}</b></div>
+        <div>অর্ডার: <b>${esc(l.order)||'—'}</b></div>
+      </div>
+      ${l.notes ? `<div class="lead-meta" style="margin-top:4px;">📝 ${esc(l.notes)}</div>` : ''}
+      <div class="next-action"><span class="lbl">পরবর্তী অ্যাকশন:</span>${l.action}</div>
+      <div class="lead-actions">
+        <a class="btn btn-call" href="tel:${waPhone}">📞 কল</a>
+        <a class="btn btn-wa" href="https://wa.me/${waPhone}" target="_blank" rel="noopener">💬 WhatsApp</a>
+        <button class="btn btn-copy" onclick="copyPhone('${waPhone}')">📋 নম্বর কপি</button>
+        <button class="btn btn-copy" onclick="copyMessage('${l.id}')">📝 মেসেজ কপি</button>
+        <button class="btn btn-today" onclick="markToday('${l.id}')">✓ আজ যোগাযোগ হয়েছে</button>
+        <button class="btn btn-edit" onclick="openEdit('${l.id}')">এডিট</button>
+        <button class="btn btn-del" onclick="delLead('${l.id}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toast(msg){
+  let t = document.getElementById('toastBox');
+  if(!t){
+    t = document.createElement('div'); t.id='toastBox';
+    t.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#201C1C;color:#fff;padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;z-index:99;box-shadow:0 6px 16px rgba(0,0,0,.3);opacity:0;transition:opacity .2s;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg; t.style.opacity='1';
+  clearTimeout(t._hideTimer);
+  t._hideTimer = setTimeout(()=>{ t.style.opacity='0'; }, 1800);
+}
+function copyToClipboard(text, successMsg){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>toast(successMsg)).catch(()=>fallbackCopy(text, successMsg));
+  } else fallbackCopy(text, successMsg);
+}
+function fallbackCopy(text, successMsg){
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try{ document.execCommand('copy'); toast(successMsg); }
+  catch(e){ prompt('স্বয়ংক্রিয় কপি কাজ করেনি — ম্যানুয়ালি কপি করো:', text); }
+  document.body.removeChild(ta);
+}
+function copyPhone(phone){ copyToClipboard(phone, '📋 নম্বর কপি হয়েছে'); }
+function copyMessage(id){
+  const l = leads.find(x=>x.id===id); if(!l) return;
+  const type = l.type||'লিড';
+  const action = nextActionFor(daysSince(l.last), type);
+  copyToClipboard(messageFor(action, l.product, type), '📝 মেসেজ কপি হয়েছে — WhatsApp-এ পেস্ট করো');
+}
+function esc(s){
+  if(!s) return '';
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+async function markToday(id){
+  const l = leads.find(x=>x.id===id); if(!l) return;
+  l.last = todayISO(); await saveLeads(); render();
+}
+async function delLead(id){
+  if(!confirm('এই এন্ট্রিটা মুছে ফেলতে চাও?')) return;
+  leads = leads.filter(x=>x.id!==id); await saveLeads(); render();
+}
+
+let pendingType = 'লিড';
+function pickType(t){
+  pendingType = t;
+  document.querySelectorAll('#typeSeg button').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
+}
+function openAdd(){
+  document.getElementById('formTitle').textContent = 'নতুন যোগ করুন';
+  document.getElementById('editId').value = '';
+  pickType(activeTab==='নিয়মিত কাস্টমার' ? 'নিয়মিত কাস্টমার' : 'লিড');
+  document.getElementById('f_name').value='';
+  document.getElementById('f_phone').value='';
+  document.getElementById('f_product').value='';
+  document.getElementById('f_first').value=todayISO();
+  document.getElementById('f_last').value=todayISO();
+  document.getElementById('f_verified').value='হ্যাঁ';
+  document.getElementById('f_price').value='না';
+  document.getElementById('f_order').value='অর্ডার হয়নি';
+  document.getElementById('f_notes').value='';
+  document.getElementById('overlay').classList.add('show');
+}
+function openEdit(id){
+  const l = leads.find(x=>x.id===id); if(!l) return;
+  document.getElementById('formTitle').textContent = 'এডিট করো';
+  document.getElementById('editId').value = l.id;
+  pickType(l.type || 'লিড');
+  document.getElementById('f_name').value=l.name||'';
+  document.getElementById('f_phone').value=l.phone||'';
+  document.getElementById('f_product').value=l.product||'';
+  document.getElementById('f_first').value=l.first||'';
+  document.getElementById('f_last').value=l.last||'';
+  document.getElementById('f_verified').value=l.verified||'হ্যাঁ';
+  document.getElementById('f_price').value=l.priceQuoted||'না';
+  document.getElementById('f_order').value=l.order||'অর্ডার হয়নি';
+  document.getElementById('f_notes').value=l.notes||'';
+  document.getElementById('overlay').classList.add('show');
+}
+function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
+
+async function saveForm(){
+  const id = document.getElementById('editId').value;
+  const data = {
+    type: pendingType,
+    name: document.getElementById('f_name').value.trim(),
+    phone: document.getElementById('f_phone').value.trim(),
+    product: document.getElementById('f_product').value.trim(),
+    first: document.getElementById('f_first').value,
+    last: document.getElementById('f_last').value,
+    verified: document.getElementById('f_verified').value,
+    priceQuoted: document.getElementById('f_price').value,
+    order: document.getElementById('f_order').value,
+    notes: document.getElementById('f_notes').value.trim()
+  };
+  if(!data.name){ alert('নাম দিন'); return; }
+  if(data.phone){
+    const norm = normalizePhone(data.phone);
+    const dup = leads.find(x => x.id !== id && normalizePhone(x.phone) === norm);
+    if(dup){
+      const go = confirm(`⚠️ এই নম্বরটা (${data.phone}) ইতিমধ্যে "${dup.name}"-এর এন্ট্রিতে আছে।\n\nতারপরেও নতুন করে যোগ করতে চাও?`);
+      if(!go) return;
+    }
+  }
+  if(id){
+    const idx = leads.findIndex(x=>x.id===id);
+    if(idx>-1) leads[idx] = {...leads[idx], ...data};
+  } else {
+    leads.push({id:'l_'+Date.now(), ...data});
+  }
+  await saveLeads(); closeModal(); render();
+}
+
+function updateBackupHint(){
+  const t = localStorage.getItem('obd_leads_lastbackup');
+  document.getElementById('backupHint').textContent = t ? ('শেষ ব্যাকআপ: ' + formatDate(t)) : 'এখনো ব্যাকআপ নেওয়া হয়নি — উপরের বাটনে চেপে নিয়ে রাখো';
+}
+function exportBackup(){
+  const payload = {app:'options-bd-tracker', exportedAt: todayISO(), leads: leads};
+  const jsonStr = JSON.stringify(payload, null, 2);
+  const fileName = `options-bd-backup-${todayISO()}.json`;
+
+  // Web Share API with file — works on Android Chrome even from content:// URLs
+  if(navigator.share){
+    const file = new File([jsonStr], fileName, {type:'application/json'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      navigator.share({files:[file], title:'Options BD Backup'})
+        .then(()=>{
+          localStorage.setItem('obd_leads_lastbackup', todayISO());
+          updateBackupHint();
+          toast('✅ ব্যাকআপ শেয়ার করা হয়েছে');
+        })
+        .catch(err=>{ if(err.name!=='AbortError') clipboardBackup(jsonStr); });
+      return;
+    }
+  }
+  clipboardBackup(jsonStr);
+}
+
+function clipboardBackup(jsonStr){
+  copyToClipboard(jsonStr, '✅ ব্যাকআপ কপি হয়েছে — Google Keep বা Notes-এ পেস্ট করো');
+  localStorage.setItem('obd_leads_lastbackup', todayISO());
+  updateBackupHint();
+}
+function triggerImport(){ document.getElementById('importFile').click(); }
+function handleImportFile(e){
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(ev){
+    try{
+      const parsed = JSON.parse(ev.target.result);
+      const incoming = Array.isArray(parsed) ? parsed : parsed.leads;
+      if(!Array.isArray(incoming)) throw new Error('invalid');
+      const ok = confirm(`ব্যাকআপে ${incoming.length} টা এন্ট্রি আছে। এখনকার ${leads.length} টা মুছে replace হবে। আগাবে?`);
+      if(!ok) return;
+      leads = incoming.map(l=>({type:'লিড', ...l}));
+      await saveLeads(); render();
+      alert('ব্যাকআপ থেকে ফেরত আনা হয়েছে।');
+    }catch(err){ alert('ফাইলটা পড়া গেল না — সঠিক .json ব্যাকআপ ফাইল নিশ্চিত করো।'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+document.getElementById('addBtn').addEventListener('click', openAdd);
+document.getElementById('cancelBtn').addEventListener('click', closeModal);
+document.getElementById('saveBtn').addEventListener('click', saveForm);
+document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
+document.getElementById('exportBtn').addEventListener('click', exportBackup);
+document.getElementById('importBtn').addEventListener('click', triggerImport);
+document.getElementById('importFile').addEventListener('change', handleImportFile);
+document.getElementById('searchBox').addEventListener('input', e=>{ searchQuery = e.target.value; render(); });
+document.getElementById('lockNowBtn').addEventListener('click', lockApp);
+document.getElementById('changePinBtn').addEventListener('click', ()=>{
+  document.getElementById('newPin1').value='';
+  document.getElementById('newPin2').value='';
+  document.getElementById('pinOverlay').classList.add('show');
+});
+
+document.getElementById('pinCancelBtn').addEventListener('click', ()=>document.getElementById('pinOverlay').classList.remove('show'));
+document.getElementById('pinSaveBtn').addEventListener('click', ()=>{
+  const p1 = document.getElementById('newPin1').value.trim();
+  const p2 = document.getElementById('newPin2').value.trim();
+  if(!/^\d{4}$/.test(p1)){ alert('৪-সংখ্যার PIN দাও'); return; }
+  if(p1!==p2){ alert('দুটো PIN মেলেনি'); return; }
+  localStorage.setItem(PIN_KEY, p1);
+  document.getElementById('pinOverlay').classList.remove('show');
+  document.getElementById('newPin1').value=''; document.getElementById('newPin2').value='';
+  toast('✓ নতুন PIN সেট হয়েছে');
+});
+
+setTab('লিড');
+</script>
+</body>
+</html>
