@@ -299,7 +299,7 @@
 </div>
 
 <script>
-const STORE_KEY = 'obd_leads_v1';
+const STORE_KEY = 'obd_leads_v3';
 const PIN_KEY = 'obd_pin';
 let leads = [];
 let activeTab = 'লিড';
@@ -465,12 +465,89 @@ async function loadLeads(){
     leads = raw ? JSON.parse(raw) : null;
   }catch(e){ leads = null; }
   if(!leads){
-    leads = [{
-      id:'seed1', type:'লিড', name:'Bhai (Rangpur, ৩ শোরুম)', phone:'01713515204',
-      product:'শার্ট (ফুল-স্লিভ) / শর্ট-স্লিভ জিজ্ঞাসা', verified:'হ্যাঁ',
-      first:'2026-05-07', last:'2026-06-21', priceQuoted:'হ্যাঁ', order:'অর্ডার হয়নি',
-      notes:'মে-তে অফিস ভিজিটের কথা বলেছিল, আসেনি। ঈদের কারণে গ্যাপ। জুনে আবার শর্ট-স্লিভ/পোলো জিজ্ঞেস করেছে।'
-    }];
+    leads = [
+      {
+        id:'s1', type:'লিড',
+        name:'Bhai (Rangpur, ৩ শোরুম)',
+        phone:'01713515204',
+        product:'শার্ট (ফুল-স্লিভ) / শর্ট-স্লিভ জিজ্ঞাসা',
+        verified:'হ্যাঁ', first:'2026-05-07', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'অর্ডার হয়নি',
+        notes:'মে-তে অফিস ভিজিটের কথা বলেছিল, আসেনি। ঈদের কারণে গ্যাপ। জুনে আবার শর্ট-স্লিভ/পোলো জিজ্ঞেস করেছে।'
+      },
+      {
+        id:'s2', type:'লিড',
+        name:'আলামিন ভাই',
+        phone:'+880 1722-798948',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-05-07', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'WhatsApp-এ যোগাযোগ চলছে'
+      },
+      {
+        id:'s3', type:'লিড',
+        name:'মোঃ রাশেদ পারভেজ BG exclusive collection, muk...',
+        phone:'+880 1915-399591',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-05-09', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'কোন কিছুই জানায়নি সাইলেন্ট আছে'
+      },
+      {
+        id:'s4', type:'লিড',
+        name:'আকাশ সাহা (নারায়ণগঞ্জ)',
+        phone:'+880 1772-300232',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-05-08', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'জানাবে বলেছে এবং তাকে ফোন করা হয়েছিল, সবকিছু তার ডিলেট হয়ে গেছে শুধু ফোন নাম্বার আছে'
+      },
+      {
+        id:'s5', type:'লিড',
+        name:'মোঃ সাইদুজ্জামান (রু ডেনিম বে শপিং সেন্টার চিটাগং)',
+        phone:'+880 1642-728292',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-05-06', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'আসার কথা বলেছে সাইলেন্ট থাকে'
+      },
+      {
+        id:'s6', type:'লিড',
+        name:'মোহাম্মদ রাশেদুল (এক্সো পো)',
+        phone:'+880 1760-226622',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-05-10', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'সাইলেন্ট থাকে'
+      },
+      {
+        id:'s7', type:'লিড',
+        name:'মোহাম্মদ কালাম ভাই কুমিল্লা',
+        phone:'+880 1319-086371',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-05-06', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'সাইলেন্ট আগ্রহ ছিল'
+      },
+      {
+        id:'s8', type:'লিড',
+        name:'শাহিনা আক্তার উত্তরা',
+        phone:'+880 1722-267176',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-05-11', last:'2026-06-21',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'রেসপন্স করে না'
+      },
+      {
+        id:'s9', type:'লিড',
+        name:'মোহাম্মদ আসাদুজ্জামান আল আমিন',
+        phone:'+880 1710-260582',
+        product:'শার্ট',
+        verified:'হ্যাঁ', first:'2026-06-18', last:'2026-06-22',
+        priceQuoted:'হ্যাঁ', order:'আলোচনা চলছে',
+        notes:'কম রেসপন্স কম'
+      }
+    ];
     await saveLeads();
   }
   render();
@@ -709,6 +786,14 @@ async function saveForm(){
     notes: document.getElementById('f_notes').value.trim()
   };
   if(!data.name){ alert('নাম দিন'); return; }
+  if(data.phone){
+    const norm = normalizePhone(data.phone);
+    const dup = leads.find(x => x.id !== id && normalizePhone(x.phone) === norm);
+    if(dup){
+      const go = confirm(`⚠️ এই নম্বরটা (${data.phone}) ইতিমধ্যে "${dup.name}"-এর এন্ট্রিতে আছে।\n\nতারপরেও নতুন করে যোগ করতে চাও?`);
+      if(!go) return;
+    }
+  }
   if(id){
     const idx = leads.findIndex(x=>x.id===id);
     if(idx>-1) leads[idx] = {...leads[idx], ...data};
@@ -724,12 +809,28 @@ function updateBackupHint(){
 }
 function exportBackup(){
   const payload = {app:'options-bd-tracker', exportedAt: todayISO(), leads: leads};
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `options-bd-backup-${todayISO()}.json`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const jsonStr = JSON.stringify(payload, null, 2);
+  const fileName = `options-bd-backup-${todayISO()}.json`;
+
+  // Web Share API with file — works on Android Chrome even from content:// URLs
+  if(navigator.share){
+    const file = new File([jsonStr], fileName, {type:'application/json'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      navigator.share({files:[file], title:'Options BD Backup'})
+        .then(()=>{
+          localStorage.setItem('obd_leads_lastbackup', todayISO());
+          updateBackupHint();
+          toast('✅ ব্যাকআপ শেয়ার করা হয়েছে');
+        })
+        .catch(err=>{ if(err.name!=='AbortError') clipboardBackup(jsonStr); });
+      return;
+    }
+  }
+  clipboardBackup(jsonStr);
+}
+
+function clipboardBackup(jsonStr){
+  copyToClipboard(jsonStr, '✅ ব্যাকআপ কপি হয়েছে — Google Keep বা Notes-এ পেস্ট করো');
   localStorage.setItem('obd_leads_lastbackup', todayISO());
   updateBackupHint();
 }
