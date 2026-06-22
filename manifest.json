@@ -1,0 +1,17 @@
+{
+  "name": "Options BD Tracker",
+  "short_name": "Options BD",
+  "description": "লিড ও কাস্টমার ফলো-আপ ট্র্যাকার",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#C8202F",
+  "theme_color": "#C8202F",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='24' fill='%23C8202F'/><text x='96' y='130' font-size='110' text-anchor='middle' fill='white'>✓</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
