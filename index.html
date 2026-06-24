@@ -789,6 +789,61 @@ async function saveLeads(){
 }
 
 /* ═══════════════════════════════════════════════
+   GOOGLE SHEET SYNC
+═══════════════════════════════════════════════ */
+const SCRIPT_URL='https://script.google.com/macros/s/AKfycbw_A7sydVc2BDsWOYB2eEpCLUzQHpveOA2rSVrJfwExVDLZg1G67bkizPD6FK_Jgejs/exec';
+const SYNC_QUEUE_KEY='obd_sync_queue';
+
+function addToSyncQueue(lead){
+  let q=[];
+  try{q=JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY)||'[]');}catch(e){}
+  q=q.filter(x=>x.id!==lead.id);
+  q.push({...lead,_queuedAt:Date.now()});
+  localStorage.setItem(SYNC_QUEUE_KEY,JSON.stringify(q));
+}
+
+async function syncToSheet(lead){
+  const payload={
+    shopName:lead.name||'',
+    ownerName:lead.name||'',
+    phone:lead.phone||'',
+    address:[lead.area,lead.district].filter(Boolean).join(', ')||'',
+    status:lead.type==='নিয়মিত কাস্টমার'?'Regular Customer':'New Lead',
+    lastContact:lead.last||'',
+    notes:lead.notes||'',
+    followUpDate:'',
+    leadSource:lead.source||'',
+    customerType:lead.type||''
+  };
+  try{
+    await fetch(SCRIPT_URL,{
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    let q=[];
+    try{q=JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY)||'[]');}catch(e){}
+    q=q.filter(x=>x.id!==lead.id);
+    localStorage.setItem(SYNC_QUEUE_KEY,JSON.stringify(q));
+    return true;
+  }catch(err){
+    return false;
+  }
+}
+
+async function flushSyncQueue(){
+  let q=[];
+  try{q=JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY)||'[]');}catch(e){}
+  if(q.length===0) return;
+  for(const lead of q){
+    await syncToSheet(lead);
+  }
+}
+
+window.addEventListener('online',flushSyncQueue);
+
+/* ═══════════════════════════════════════════════
    RENDER
 ═══════════════════════════════════════════════ */
 function setTodayLabel(){
@@ -1091,16 +1146,28 @@ async function saveForm(){
     order:document.getElementById('f_order').value,
     notes:document.getElementById('f_notes').value.trim()
   };
+  let savedLead;
   if(id){
     const i=leads.findIndex(x=>x.id===id);
-    if(i>-1) leads[i]={...leads[i],...data};
+    if(i>-1){ leads[i]={...leads[i],...data}; savedLead=leads[i]; }
   } else {
-    leads.push({id:'l_'+Date.now(),...data});
+    savedLead={id:'l_'+Date.now(),...data};
+    leads.push(savedLead);
   }
   await saveLeads();
   document.getElementById('formOverlay').classList.remove('show');
   render();
   toast(id?'✓ আপডেট হয়েছে':'✓ নতুন এন্ট্রি যোগ হয়েছে');
+  // Google Sheet sync
+  if(savedLead && navigator.onLine){
+    syncToSheet(savedLead).then(ok=>{
+      if(ok) toast('☁️ Google Sheet-এ সেভ হয়েছে');
+      else{ addToSyncQueue(savedLead); }
+    });
+  } else if(savedLead){
+    addToSyncQueue(savedLead);
+    toast('📶 Offline — পরে Sheet-এ যাবে');
+  }
 }
 
 function closeAll(){
