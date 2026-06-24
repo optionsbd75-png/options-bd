@@ -1,4 +1,4 @@
-const CACHE = 'obd-v2';
+const CACHE = 'obd-v3';
 const ASSETS = ['./', './index.html'];
 
 self.addEventListener('install', e => {
