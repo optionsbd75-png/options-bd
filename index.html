@@ -803,30 +803,44 @@ function addToSyncQueue(lead){
 }
 
 async function syncToSheet(lead){
-  rern new Promise((resolve)=>{
-    try{tu
+  return new Promise((resolve)=>{
+    try{
+      const cbName='_gasCallback_'+Date.now();
       const params=new URLSearchParams({
         shopName: lead.name||'',
         ownerName: lead.name||'',
         phone: lead.phone||'',
         address: [lead.area,lead.district].filter(Boolean).join(', ')||'',
-        status: lead.type==='নিয়মিত কাস্টমার'?'Regular Customer':'New Lead',
+        status: lead.type==='নিয়মিত কাস্টামার'?'Regular Customer':'New Lead',
         lastContact: lead.last||'',
         notes: lead.notes||'',
         followUpDate: '',
         leadSource: lead.source||'',
-        customerType: lead.type||''
+        customerType: lead.type||'',
+        callback: cbName
       });
       const url = SCRIPT_URL+'?'+params.toString();
-      const img = new Image();
-      img.onload = img.onerror = ()=>{
-        let q=[];
-        try{q=JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY)||'[]');}catch(e){}
-        q=q.filter(x=>x.id!==lead.id);
-        localStorage.setItem(SYNC_QUEUE_KEY,JSON.stringify(q));
+      const script = document.createElement('script');
+      const timer = setTimeout(()=>{
+        cleanup();
+        resolve(false);
+      }, 10000);
+      window[cbName]=(response)=>{
+        clearTimeout(timer);
+        cleanup();
         resolve(true);
       };
-      img.src = url;
+      function cleanup(){
+        if(script.parentNode) script.parentNode.removeChild(script);
+        delete window[cbName];
+      }
+      script.onerror=()=>{
+        clearTimeout(timer);
+        cleanup();
+        resolve(false);
+      };
+      script.src = url;
+      document.head.appendChild(script);
     }catch(err){
       resolve(false);
     }
