@@ -805,41 +805,30 @@ function addToSyncQueue(lead){
 async function syncToSheet(lead){
   return new Promise((resolve)=>{
     try{
-      const cbName='_gasCallback_'+Date.now();
       const params=new URLSearchParams({
         shopName: lead.name||'',
         ownerName: lead.name||'',
         phone: lead.phone||'',
         address: [lead.area,lead.district].filter(Boolean).join(', ')||'',
-        status: lead.type==='নিয়মিত কাস্টামার'?'Regular Customer':'New Lead',
+        status: lead.type==='নিয়মিত কাস্টমার'?'Regular Customer':'New Lead',
         lastContact: lead.last||'',
         notes: lead.notes||'',
         followUpDate: '',
         leadSource: lead.source||'',
-        customerType: lead.type||'',
-        callback: cbName
+        customerType: lead.type||''
       });
       const url = SCRIPT_URL+'?'+params.toString();
+      // JSONP method — works from any domain
       const script = document.createElement('script');
-      const timer = setTimeout(()=>{
-        cleanup();
-        resolve(false);
-      }, 10000);
-      window[cbName]=(response)=>{
-        clearTimeout(timer);
-        cleanup();
+      script.src = url;
+      script.onload = script.onerror = ()=>{
+        if(script.parentNode) script.parentNode.removeChild(script);
+        let q=[];
+        try{q=JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY)||'[]');}catch(e){}
+        q=q.filter(x=>x.id!==lead.id);
+        localStorage.setItem(SYNC_QUEUE_KEY,JSON.stringify(q));
         resolve(true);
       };
-      function cleanup(){
-        if(script.parentNode) script.parentNode.removeChild(script);
-        delete window[cbName];
-      }
-      script.onerror=()=>{
-        clearTimeout(timer);
-        cleanup();
-        resolve(false);
-      };
-      script.src = url;
       document.head.appendChild(script);
     }catch(err){
       resolve(false);
@@ -1201,21 +1190,25 @@ function updateBkHint(){
 }
 function doExport(){
   const json=JSON.stringify({app:'options-bd-tracker',exportedAt:todayISO(),leads},null,2);
-  const fname=`options-bd-backup-${todayISO()}.json`;
-  if(navigator.share){
-    const f=new File([json],fname,{type:'application/json'});
-    if(navigator.canShare&&navigator.canShare({files:[f]})){
-      navigator.share({files:[f],title:'Options BD Backup'})
-        .then(()=>{localStorage.setItem(BK_KEY,todayISO());updateBkHint();toast('✅ ব্যাকআপ শেয়ার হয়েছে');})
-        .catch(err=>{if(err.name!=='AbortError') fallbackExport(json);});
-      return;
-    }
+  const fname='options-bd-backup-'+todayISO()+'.json';
+  try{
+    const blob=new Blob([json],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=fname;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    localStorage.setItem(BK_KEY,todayISO());
+    updateBkHint();
+    toast('✅ ব্যাকআপ ডাউনলোড হচ্ছে');
+  }catch(err){
+    const json2=JSON.stringify({app:'options-bd-tracker',exportedAt:todayISO(),leads},null,2);
+    copyText(json2,'✅ ব্যাকআপ কপি হয়েছে');
+    localStorage.setItem(BK_KEY,todayISO());
+    updateBkHint();
   }
-  fallbackExport(json);
-}
-function fallbackExport(json){
-  copyText(json,'✅ ব্যাকআপ কপি হয়েছে — Notes-এ পেস্ট করো');
-  localStorage.setItem(BK_KEY,todayISO()); updateBkHint();
 }
 function doImport(){document.getElementById('importFile').click();}
 function handleImport(e){
