@@ -806,10 +806,14 @@ function addToSyncQueue(lead){
 async function syncToSheet(lead){
   return new Promise((resolve)=>{
     try{
+      // Clean phone: remove +, spaces, dashes for URL safety
+      const rawPhone = (lead.phone||'').replace(/[^0-9]/g,'');
+      const cleanPhone = rawPhone.startsWith('880') ? rawPhone : rawPhone.startsWith('0') ? '880'+rawPhone.slice(1) : rawPhone;
+
       const params=new URLSearchParams({
         shopName: lead.name||'',
         ownerName: lead.name||'',
-        phone: lead.phone||'',
+        phone: cleanPhone,
         address: [lead.area,lead.district].filter(Boolean).join(', ')||'',
         status: lead.type==='নিয়মিত কাস্টমার'?'Regular Customer':'New Lead',
         lastContact: lead.last||'',
@@ -819,7 +823,7 @@ async function syncToSheet(lead){
         customerType: lead.type||''
       });
       const url = SCRIPT_URL+'?'+params.toString();
-      // JSONP method — works from any domain
+      // JSONP method
       const script = document.createElement('script');
       script.src = url;
       script.onload = script.onerror = ()=>{
