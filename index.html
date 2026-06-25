@@ -429,8 +429,13 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
     </div>
 
     <div class="field">
-      <label>নাম / দোকানের নাম <span style="color:var(--red)">*</span></label>
-      <input id="f_name" placeholder="যেমন: আলামিন ভাই, রহিম স্টোর">
+      <label>দোকানের নাম <span style="color:var(--red)">*</span></label>
+      <input id="f_name" placeholder="যেমন: রহিম স্টোর, Euro Fashion">
+    </div>
+
+    <div class="field">
+      <label>মালিকের নাম</label>
+      <input id="f_owner" placeholder="যেমন: রহিম ভাই, করিম সাহেব">
     </div>
 
     <div class="field">
@@ -535,6 +540,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
 
     <div class="detail-section">
       <div class="ds-title">তথ্য</div>
+      <div class="detail-row"><span class="dk">মালিকের নাম</span><span class="dv" id="d_owner">—</span></div>
       <div class="detail-row"><span class="dk">এলাকা</span><span class="dv" id="d_area">—</span></div>
       <div class="detail-row"><span class="dk">প্রোডাক্ট</span><span class="dv" id="d_product">—</span></div>
       <div class="detail-row"><span class="dk">Lead Source</span><span class="dv" id="d_source">—</span></div>
@@ -818,7 +824,7 @@ async function syncToSheet(lead){
 
       const params=new URLSearchParams({
         shopName: lead.name||'',
-        ownerName: lead.name||'',
+        ownerName: lead.owner||lead.name||'',
         phone: cleanPhone,
         address: [lead.area,lead.district].filter(Boolean).join(', ')||'',
         status: lead.type==='নিয়মিত কাস্টমার'?'Regular Customer':'New Lead',
@@ -977,7 +983,7 @@ function render(){
       <div class="lcard-top">
         <div>
           <div class="lcard-name">${esc(l.name)||'নাম নেই'}</div>
-          <div class="lcard-phone">${esc(l.phone)||'—'}${l.area?` · ${esc(l.area)}`:''}${l.district&&l.district!==l.area?`, ${esc(l.district)}`:''}</div>
+          <div class="lcard-phone">${l.owner?esc(l.owner)+' · ':''}${esc(l.phone)||'—'}${l.area?` · ${esc(l.area)}`:''}${l.district&&l.district!==l.area?`, ${esc(l.district)}`:''}</div>
           <div class="lcard-chips">
             <span class="chip ${l.type==='নিয়মিত কাস্টমার'?'chip-cust':'chip-lead'}">${l.type}</span>
             ${srcChip}
@@ -1036,6 +1042,7 @@ function openDetail(id){
   const srcChip=l.source?`<span class="chip chip-src">${esc(l.source)}</span>`:'';
   chips.innerHTML=`<span class="chip ${l.type==='নিয়মিত কাস্টমার'?'chip-cust':'chip-lead'}">${l.type}</span>${srcChip}`;
 
+  document.getElementById('d_owner').textContent=l.owner||'—';
   document.getElementById('d_area').textContent=
     [l.area,l.district].filter(Boolean).join(', ')||'—';
   document.getElementById('d_product').textContent=l.product||'—';
@@ -1108,7 +1115,7 @@ function openAdd(){
   document.getElementById('editId').value='';
   pickType(activeTab==='নিয়মিত কাস্টমার'?'নিয়মিত কাস্টমার':'লিড');
   pickSource('Facebook');
-  ['f_name','f_phone','f_area','f_district','f_product','f_notes'].forEach(id=>document.getElementById(id).value='');
+  ['f_name','f_owner','f_phone','f_area','f_district','f_product','f_notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f_first').value=todayISO();
   document.getElementById('f_last').value=todayISO();
   document.getElementById('f_price').value='না';
@@ -1124,6 +1131,7 @@ function openEdit(id){
   pickType(l.type||'লিড');
   pickSource(l.source||'Facebook');
   document.getElementById('f_name').value=l.name||'';
+  document.getElementById('f_owner').value=l.owner||'';
   document.getElementById('f_phone').value=l.phone||'';
   document.getElementById('f_area').value=l.area||'';
   document.getElementById('f_district').value=l.district||'';
@@ -1149,8 +1157,9 @@ async function saveForm(){
       if(!go) return;
     }
   }
+  const owner=document.getElementById('f_owner').value.trim();
   const data={
-    type:pendingType, name, phone,
+    type:pendingType, name, owner, phone,
     area:document.getElementById('f_area').value.trim(),
     district:document.getElementById('f_district').value.trim(),
     source:pendingSource,
