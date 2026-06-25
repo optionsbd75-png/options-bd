@@ -1,4 +1,4 @@
-const CACHE = 'obd-v3';
+const CACHE = 'obd-v4';
 const ASSETS = ['./', './index.html'];
 
 self.addEventListener('install', e => {
@@ -19,6 +19,12 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('./index.html')))
+    fetch(e.request)
+      .then(response => {
+        const clone = response.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+        return response;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
