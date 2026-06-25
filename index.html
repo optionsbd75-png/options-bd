@@ -416,6 +416,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
 <div class="overlay" id="formOverlay">
   <div class="sheet">
     <div class="sheet-handle"></div>
+    <button onclick="document.getElementById('formOverlay').classList.remove('show')" style="background:none;border:none;color:var(--muted);font-size:13px;font-weight:700;font-family:inherit;padding:0 0 12px 0;cursor:pointer;display:flex;align-items:center;gap:4px;">← ফিরে যাও</button>
     <h3 id="formTitle">নতুন লিড যোগ করুন</h3>
     <input type="hidden" id="editId">
 
@@ -559,6 +560,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
 <div class="overlay" id="pinOverlay">
   <div class="sheet pin-sheet">
     <div class="sheet-handle"></div>
+    <button onclick="document.getElementById('pinOverlay').classList.remove('show')" style="background:none;border:none;color:var(--muted);font-size:13px;font-weight:700;font-family:inherit;padding:0 0 12px 0;cursor:pointer;display:flex;align-items:center;gap:4px;">← ফিরে যাও</button>
     <h3>PIN পরিবর্তন করো</h3>
     <div class="field"><label>নতুন ৪-সংখ্যার PIN</label><input type="tel" maxlength="4" id="newPin1" placeholder="••••"></div>
     <div class="field"><label>আবার লিখো</label><input type="tel" maxlength="4" id="newPin2" placeholder="••••"></div>
