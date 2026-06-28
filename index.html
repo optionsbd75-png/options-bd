@@ -382,6 +382,9 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
       <div class="stat s-cold" onclick="setFilter('a:সরাসরি যোগাযোগ','🔴 সম্পর্ক ঠান্ডা')">
         <div class="num" id="sc6">০</div><div class="lab">🔴 সম্পর্ক ঠান্ডা</div>
       </div>
+      <div class="stat s-check" onclick="setFilter('reorder:due','🔁 রিঅর্ডারের সময়')">
+        <div class="num" id="sc7">০</div><div class="lab">🔁 রিঅর্ডারের সময়</div>
+      </div>
     </div>
   </div>
 
@@ -497,6 +500,11 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
           <option>আগ্রহী না</option>
         </select>
       </div>
+    </div>
+
+    <div class="field">
+      <label>শেষ অর্ডারের তারিখ</label>
+      <input type="date" id="f_lastorder">
     </div>
 
     <div class="field">
@@ -657,6 +665,8 @@ function actionFor(days, type){
 }
 
 function msgFor(action, product, type){
+  if(action==='reorder:due' || (type==='নিয়মিত কাস্টমার' && action==='রিঅর্ডারের সময়'))
+    return 'আসসালামু আলাইকুম ভাই। গতবার যা নিয়েছিলেন সেগুলো এতদিনে অনেকটা বিক্রি হওয়ার কথা। নতুন স্টক এসেছে — ছবি পাঠাই, দেখে নিন?';
   if(type==='নিয়মিত কাস্টমার'){
     if(action==='সরাসরি যোগাযোগ করো')
       return 'আসসালামু আলাইকুম ভাই। অনেকদিন কথা হয়নি — সব ঠিকঠাক আছে তো? শোরুমে কেমন চলছে এখন?';
@@ -898,6 +908,16 @@ function render(){
   document.getElementById('sc4').textContent=toBn(counts.c4);
   document.getElementById('sc5').textContent=toBn(counts.c5);
   document.getElementById('sc6').textContent=toBn(counts.c6);
+  // রিঅর্ডার counter
+  const todayMs = new Date(todayISO()+'T00:00:00').getTime();
+  let reorderCount = 0;
+  leads.forEach(l=>{
+    if((l.type||'লিড')==='নিয়মিত কাস্টমার' && l.lastOrder){
+      const due = new Date(l.lastOrder+'T00:00:00').getTime() + 30*24*60*60*1000;
+      if(todayMs >= due) reorderCount++;
+    }
+  });
+  document.getElementById('sc7').textContent=toBn(reorderCount);
 
   const lc=leads.filter(l=>(l.type||'লিড')==='লিড').length;
   const cc=leads.filter(l=>l.type==='নিয়মিত কাস্টমার').length;
@@ -935,6 +955,13 @@ function render(){
     working=working.filter(l=>l.action==='খোঁজ নিন / নতুন স্টক জানান');
   } else if(activeFilter==='a:সরাসরি যোগাযোগ'){
     working=working.filter(l=>l.action==='সরাসরি যোগাযোগ করো');
+  } else if(activeFilter==='reorder:due'){
+    const todayMs2 = new Date(todayISO()+'T00:00:00').getTime();
+    working=working.filter(l=>{
+      if((l.type||'লিড')!=='নিয়মিত কাস্টমার' || !l.lastOrder) return false;
+      const due = new Date(l.lastOrder+'T00:00:00').getTime() + 30*24*60*60*1000;
+      return todayMs2 >= due;
+    });
   }
 
   // search
@@ -1114,7 +1141,7 @@ function openAdd(){
   document.getElementById('editId').value='';
   pickType(activeTab==='নিয়মিত কাস্টমার'?'নিয়মিত কাস্টমার':'লিড');
   pickSource('Facebook');
-  ['f_name','f_owner','f_phone','f_area','f_district','f_product','f_notes'].forEach(id=>document.getElementById(id).value='');
+  ['f_name','f_owner','f_phone','f_area','f_district','f_product','f_notes','f_lastorder'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f_first').value=todayISO();
   document.getElementById('f_last').value=todayISO();
   document.getElementById('f_price').value='না';
@@ -1140,6 +1167,7 @@ function openEdit(id){
   document.getElementById('f_price').value=l.priceQuoted||'না';
   document.getElementById('f_order').value=l.order||'অর্ডার হয়নি';
   document.getElementById('f_notes').value=l.notes||'';
+  document.getElementById('f_lastorder').value=l.lastOrder||'';
   document.getElementById('formOverlay').classList.add('show');
 }
 
@@ -1167,7 +1195,8 @@ async function saveForm(){
     last:document.getElementById('f_last').value,
     priceQuoted:document.getElementById('f_price').value,
     order:document.getElementById('f_order').value,
-    notes:document.getElementById('f_notes').value.trim()
+    notes:document.getElementById('f_notes').value.trim(),
+    lastOrder:document.getElementById('f_lastorder').value
   };
   let savedLead;
   if(id){
