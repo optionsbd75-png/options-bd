@@ -832,14 +832,14 @@ async function syncToSheet(lead){
       else if(rawPhone.length>=11 && !rawPhone.startsWith('880')){ cleanPhone = '880'+rawPhone; }
 
       const params=new URLSearchParams({
+        id: lead.id||'',
         shopName: lead.name||'',
-        ownerName: lead.owner||lead.name||'',
+        ownerName: lead.owner||'',
         phone: cleanPhone,
         address: [lead.area,lead.district].filter(Boolean).join(', ')||'',
         status: lead.type==='নিয়মিত কাস্টমার'?'Regular Customer':'New Lead',
         lastContact: lead.last||'',
         notes: lead.notes||'',
-        followUpDate: '',
         leadSource: lead.source||'',
         customerType: lead.type||''
       });
