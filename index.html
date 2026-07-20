@@ -886,7 +886,8 @@ async function syncToSheet(lead){
         lastContact: lead.last||'',
         notes: lead.notes||'',
         leadSource: lead.source||'',
-        customerType: lead.type||''
+        customerType: lead.type||'',
+        lastMessage: lead.lastMessage||''
       });
       const url = SCRIPT_URL+'?'+params.toString();
       // JSONP method
@@ -1144,9 +1145,16 @@ document.getElementById('d_copyMsgBtn').addEventListener('click',async()=>{
   const l=leads.find(x=>x.id===detailId); if(!l) return;
   const el=enrich(l);
   const rot=l._msgRot||0;
-  copyText(msgFor(el,rot),'📝 মেসেজ কপি হয়েছে');
+  const text=msgFor(el,rot);
+  copyText(text,'📝 মেসেজ কপি হয়েছে');
   l._msgRot=rot+1;
+  l.lastMessage=text;
   await saveLeads();
+  if(navigator.onLine){
+    syncToSheet(l).then(ok=>{ if(!ok) addToSyncQueue(l); });
+  } else {
+    addToSyncQueue(l);
+  }
 });
 document.getElementById('d_todayBtn').addEventListener('click',async()=>{
   const l=leads.find(x=>x.id===detailId); if(!l) return;
