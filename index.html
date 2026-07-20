@@ -678,7 +678,11 @@ const REACT_VARIANTS = [
   'আসসালামু আলাইকুম ভাই। অনেকদিন কথা হয় না। ব্যবসা কেমন চলছে? নতুন কিছু লাগলে জানাবেন 🤝',
   'ভাই, সামনে সিজন আসছে। এখন থেকে স্টক গুছিয়ে রাখলে শেষ মুহূর্তের চাপ কম থাকে।'
 ];
-function fillProduct(tpl, product){ return tpl.replace('{PRODUCT}', product || 'প্রোডাক্ট'); }
+function fillProduct(tpl, product){
+  const KNOWN_PRODUCTS = ['শার্ট','কাতুয়া','পাঞ্জাবি','পাঞ্জাবী','কাবলি','শার্টস'];
+  const clean = (KNOWN_PRODUCTS.includes((product||'').trim())) ? product.trim() : 'প্রোডাক্ট';
+  return tpl.replace('{PRODUCT}', clean);
+}
 function hasAny(text, keywords){ return keywords.some(k => text.includes(k)); }
 
 function msgFor(el, rot){
@@ -697,7 +701,9 @@ function msgFor(el, rot){
 
   // ── ১. অর্ডার কনফার্ম হয়নি ──
   if (notes.includes('অর্ডার') && hasAny(notes, ['কনফার্ম করেনি','কনফার্ম হয়নি','কনফার্ম করে নাই','কনফার্ম করলো না'])) {
-    return 'আসসালামু আলাইকুম ভাই। ' + (product ? product+' নিয়ে ' : '') + 'কথা হয়েছিল কিন্তু অর্ডারটা এখনো কনফার্ম হয়নি — আজই বুকিং দিতে চাইলে জানান, কুরিয়ারে পাঠিয়ে দিচ্ছি।';
+    const KNOWN_PRODUCTS_OC = ['শার্ট','কাতুয়া','পাঞ্জাবি','পাঞ্জাবী','কাবলি','শার্টস'];
+    const safeProduct = KNOWN_PRODUCTS_OC.includes((product||'').trim()) ? product.trim() : '';
+    return 'আসসালামু আলাইকুম ভাই। ' + (safeProduct ? safeProduct+' নিয়ে ' : '') + 'কথা হয়েছিল কিন্তু অর্ডারটা এখনো কনফার্ম হয়নি — আজই বুকিং দিতে চাইলে জানান, কুরিয়ারে পাঠিয়ে দিচ্ছি।';
   }
 
   // ── ২. দামাদামি / দর কষাকষি ──
@@ -707,7 +713,7 @@ function msgFor(el, rot){
 
   // ── ৩. ভয়েস মেসেজ শোনা হয়নি ──
   if (notes.includes('ভয়েস মেসেজ')) {
-    return 'ভাই, আগে একটা ভয়েস মেসেজ পাঠিয়েছিলাম, হয়তো শোনা হয়নি। সংক্ষেপে লিখে দিচ্ছি — ' + (product||'প্রোডাক্ট') + ' নিয়ে আগ্রহ ছিল, এখনো লাগলে জানাবেন।';
+    return 'ভাই, আগে একটা ভয়েস মেসেজ পাঠিয়েছিলাম, হয়তো শোনা হয়নি। সংক্ষেপে লিখে দিচ্ছি — ' + fillProduct('{PRODUCT}', product) + ' নিয়ে আগ্রহ ছিল, এখনো লাগলে জানাবেন।';
   }
 
   // ── ৪. আসার কথা/প্রতিশ্রুতি ──
