@@ -511,6 +511,10 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
       <label>নোট</label>
       <textarea id="f_notes" placeholder="যেকোনো গুরুত্বপূর্ণ তথ্য লিখে রাখো…"></textarea>
     </div>
+    <div class="field">
+      <label>নতুন মেসেজ পাঠালে এখানে লিখুন (ঐচ্ছিক — App-এর বাইরে কাস্টম মেসেজ পাঠালে)</label>
+      <textarea id="f_lastmsg" placeholder="যে মেসেজটা এইমাত্র পাঠালেন সেটা এখানে পেস্ট করুন…"></textarea>
+    </div>
 
     <div class="modal-btns">
       <button class="btn-cancel" id="formCancelBtn">বাতিল</button>
@@ -1197,7 +1201,7 @@ function openAdd(){
   document.getElementById('editId').value='';
   pickType(activeTab==='নিয়মিত কাস্টমার'?'নিয়মিত কাস্টমার':'লিড');
   pickSource('Facebook');
-  ['f_name','f_owner','f_phone','f_area','f_district','f_product','f_notes','f_lastorder'].forEach(id=>document.getElementById(id).value='');
+  ['f_name','f_owner','f_phone','f_area','f_district','f_product','f_notes','f_lastorder','f_lastmsg'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f_first').value=todayISO();
   document.getElementById('f_last').value=todayISO();
   document.getElementById('f_price').value='না';
@@ -1224,6 +1228,7 @@ function openEdit(id){
   document.getElementById('f_order').value=l.order||'অর্ডার হয়নি';
   document.getElementById('f_notes').value=l.notes||'';
   document.getElementById('f_lastorder').value=l.lastOrder||'';
+  document.getElementById('f_lastmsg').value='';
   document.getElementById('formOverlay').classList.add('show');
 }
 
@@ -1254,6 +1259,8 @@ async function saveForm(){
     notes:document.getElementById('f_notes').value.trim(),
     lastOrder:document.getElementById('f_lastorder').value
   };
+  const customMsg=document.getElementById('f_lastmsg').value.trim();
+  if(customMsg) data.lastMessage=customMsg;
   let savedLead;
   if(id){
     const i=leads.findIndex(x=>x.id===id);
