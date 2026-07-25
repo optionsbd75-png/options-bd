@@ -468,6 +468,17 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
     </div>
 
     <div class="field">
+      <label>Campaign Source</label>
+      <input id="f_campaign" list="campaignList" placeholder="যেমন: seed100-16July2026 / Organic / Direct">
+      <datalist id="campaignList">
+        <option value="Organic"></option>
+        <option value="Direct"></option>
+        <option value="Referral"></option>
+        <option value="অজানা (পূর্বের)"></option>
+      </datalist>
+    </div>
+
+    <div class="field">
       <label>প্রোডাক্ট আগ্রহ</label>
       <input id="f_product" placeholder="যেমন: শার্ট, কাতুয়া">
     </div>
@@ -556,6 +567,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
       <div class="detail-row"><span class="dk">এলাকা</span><span class="dv" id="d_area">—</span></div>
       <div class="detail-row"><span class="dk">প্রোডাক্ট</span><span class="dv" id="d_product">—</span></div>
       <div class="detail-row"><span class="dk">Lead Source</span><span class="dv" id="d_source">—</span></div>
+      <div class="detail-row"><span class="dk">Campaign Source</span><span class="dv" id="d_campaign">—</span></div>
       <div class="detail-row"><span class="dk">দাম জানানো</span><span class="dv" id="d_price">—</span></div>
       <div class="detail-row"><span class="dk">অর্ডার</span><span class="dv" id="d_order">—</span></div>
       <div class="detail-row"><span class="dk">প্রথম যোগাযোগ</span><span class="dv" id="d_first">—</span></div>
@@ -866,68 +878,176 @@ async function saveLeads(){
 ═══════════════════════════════════════════════ */
 const SCRIPT_URL='https://script.google.com/macros/s/AKfycbw_A7sydVc2BDsWOYB2eEpCLUzQHpveOA2rSVrJfwExVDLZg1G67bkizPD6FK_Jgejs/exec';
 const SYNC_QUEUE_KEY='obd_sync_queue';
+const SYNC_TIMEOUT_MS=20000;
+const SYNC_GAP_MS=350;
+const SYNC_POLL_MS=45000;
+let _syncSeq=0;
+let _flushing=false;
 
-function addToSyncQueue(lead){
-  let q=[];
-  try{q=JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY)||'[]');}catch(e){}
-  q=q.filter(x=>x.id!==lead.id);
-  q.push({...lead,_queuedAt:Date.now()});
-  localStorage.setItem(SYNC_QUEUE_KEY,JSON.stringify(q));
+/* ---------- queue helpers (stores lead IDs only, never stale snapshots) ---------- */
+function getQueue(){
+  try{ const q=JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY)||'[]'); return Array.isArray(q)?q:[]; }
+  catch(e){ return []; }
+}
+function setQueue(q){
+  try{ localStorage.setItem(SYNC_QUEUE_KEY,JSON.stringify(q)); }catch(e){}
+}
+function queueLead(leadId){
+  if(!leadId) return;
+  const q=getQueue().filter(x=>x && x.id!==leadId);
+  q.push({id:leadId,queuedAt:Date.now(),tries:0});
+  setQueue(q);
+  updateSyncBadge();
+}
+function dequeueLead(leadId){
+  setQueue(getQueue().filter(x=>x && x.id!==leadId));
+  updateSyncBadge();
+}
+function bumpTries(leadId){
+  const q=getQueue();
+  const it=q.find(x=>x && x.id===leadId);
+  if(it){ it.tries=(it.tries||0)+1; it.lastTry=Date.now(); setQueue(q); }
+}
+function pendingCount(){ return getQueue().length; }
+
+/* Backward compatibility: old queue stored full lead objects. Convert to ID-only. */
+function migrateOldQueue(){
+  const q=getQueue();
+  if(!q.length) return;
+  let changed=false;
+  const out=[];
+  const seen={};
+  q.forEach(x=>{
+    if(!x||!x.id) { changed=true; return; }
+    if(seen[x.id]) { changed=true; return; }
+    seen[x.id]=1;
+    if(x.queuedAt!==undefined && x.tries!==undefined && Object.keys(x).length<=4){ out.push(x); }
+    else { out.push({id:x.id,queuedAt:x._queuedAt||Date.now(),tries:0}); changed=true; }
+  });
+  if(changed) setQueue(out);
 }
 
-async function syncToSheet(lead){
-  return new Promise((resolve)=>{
-    try{
-      // Clean phone: always ensure 880 prefix
-      const rawPhone = (lead.phone||'').replace(/[^0-9]/g,'');
-      let cleanPhone = rawPhone;
-      if(rawPhone.startsWith('880') && rawPhone.length>=13){ cleanPhone = rawPhone; }
-      else if(rawPhone.startsWith('0') && rawPhone.length>=11){ cleanPhone = '880'+rawPhone.slice(1); }
-      else if(rawPhone.length===10 && !rawPhone.startsWith('0') && !rawPhone.startsWith('880')){ cleanPhone = '880'+rawPhone; }
-      else if(rawPhone.length>=11 && !rawPhone.startsWith('880')){ cleanPhone = '880'+rawPhone; }
+/* ---------- small on-screen pending indicator ---------- */
+function updateSyncBadge(){
+  let el=document.getElementById('syncBadge');
+  const n=pendingCount();
+  if(!el){
+    if(n===0) return;
+    el=document.createElement('div');
+    el.id='syncBadge';
+    el.style.cssText='position:fixed;left:10px;bottom:10px;z-index:9999;background:#b45309;color:#fff;'
+      +'font-size:12px;padding:5px 10px;border-radius:14px;box-shadow:0 2px 6px rgba(0,0,0,.25);cursor:pointer;';
+    el.addEventListener('click',()=>{ toast('🔄 সিঙ্ক চেষ্টা করছি...'); flushSyncQueue(true); });
+    document.body.appendChild(el);
+  }
+  if(n===0){ el.style.display='none'; }
+  else { el.style.display='block'; el.textContent='⏳ '+n+' টি সিঙ্ক বাকি'; }
+}
 
-      const params=new URLSearchParams({
-        id: lead.id||'',
-        shopName: lead.name||'',
-        ownerName: lead.owner||'',
-        phone: cleanPhone,
-        address: [lead.area,lead.district].filter(Boolean).join(', ')||'',
-        status: lead.type==='নিয়মিত কাস্টমার'?'Regular Customer':'New Lead',
-        lastContact: lead.last||'',
-        notes: lead.notes||'',
-        leadSource: lead.source||'',
-        customerType: lead.type||'',
-        lastMessage: lead.lastMessage||''
-      });
-      const url = SCRIPT_URL+'?'+params.toString();
-      // JSONP method
-      const script = document.createElement('script');
-      script.src = url;
-      script.onload = script.onerror = ()=>{
-        if(script.parentNode) script.parentNode.removeChild(script);
-        let q=[];
-        try{q=JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY)||'[]');}catch(e){}
-        q=q.filter(x=>x.id!==lead.id);
-        localStorage.setItem(SYNC_QUEUE_KEY,JSON.stringify(q));
-        resolve(true);
-      };
-      document.head.appendChild(script);
-    }catch(err){
-      resolve(false);
-    }
+/* ---------- request builder ---------- */
+function buildSyncParams(lead){
+  const rawPhone=(lead.phone||'').replace(/[^0-9]/g,'');
+  let cleanPhone=rawPhone;
+  if(rawPhone.startsWith('880') && rawPhone.length>=13){ cleanPhone=rawPhone; }
+  else if(rawPhone.startsWith('0') && rawPhone.length>=11){ cleanPhone='880'+rawPhone.slice(1); }
+  else if(rawPhone.length===10 && !rawPhone.startsWith('0') && !rawPhone.startsWith('880')){ cleanPhone='880'+rawPhone; }
+  else if(rawPhone.length>=11 && !rawPhone.startsWith('880')){ cleanPhone='880'+rawPhone; }
+
+  return new URLSearchParams({
+    id: lead.id||'',
+    shopName: lead.name||'',
+    ownerName: lead.owner||'',
+    phone: cleanPhone,
+    address: [lead.area,lead.district].filter(Boolean).join(', ')||'',
+    status: lead.type==='নিয়মিত কাস্টমার'?'Regular Customer':'New Lead',
+    lastContact: lead.last||'',
+    notes: lead.notes||'',
+    leadSource: lead.source||'',
+    customerType: lead.type||'',
+    lastMessage: lead.lastMessage||'',
+    campaignSource: lead.campaignSource||''
   });
 }
 
-async function flushSyncQueue(){
-  let q=[];
-  try{q=JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY)||'[]');}catch(e){}
-  if(q.length===0) return;
-  for(const lead of q){
-    await syncToSheet(lead);
-  }
+/* ---------- single request: real success detection via JSONP callback ---------- */
+function sendToSheet(lead){
+  return new Promise(resolve=>{
+    if(!lead || !navigator.onLine){ resolve(false); return; }
+    const cbName='__obdSync'+(++_syncSeq)+'_'+Date.now();
+    let done=false, timer=null;
+    const script=document.createElement('script');
+    const finish=ok=>{
+      if(done) return;
+      done=true;
+      if(timer) clearTimeout(timer);
+      try{ delete window[cbName]; }catch(e){ window[cbName]=undefined; }
+      if(script.parentNode) script.parentNode.removeChild(script);
+      resolve(!!ok);
+    };
+    window[cbName]=resp=>{ finish(resp && resp.status==='ok'); };
+    timer=setTimeout(()=>finish(false),SYNC_TIMEOUT_MS);
+    const params=buildSyncParams(lead);
+    params.set('callback',cbName);
+    script.async=true;
+    script.onerror=()=>finish(false);
+    script.src=SCRIPT_URL+'?'+params.toString();
+    document.head.appendChild(script);
+  });
 }
 
-window.addEventListener('online',flushSyncQueue);
+/* ---------- public: sync one lead, auto-queue on any failure ---------- */
+async function syncLead(lead,opts){
+  opts=opts||{};
+  if(!lead||!lead.id) return false;
+  if(!navigator.onLine){
+    queueLead(lead.id);
+    if(!opts.silent) toast('📶 অফলাইন — অনলাইনে এলে নিজে থেকেই যাবে');
+    return false;
+  }
+  const ok=await sendToSheet(lead);
+  if(ok){
+    dequeueLead(lead.id);
+    if(!opts.silent) toast('☁️ Google Sheet-এ সেভ হয়েছে');
+  } else {
+    queueLead(lead.id);
+    if(!opts.silent) toast('⚠️ সিঙ্ক হয়নি — পরে নিজে থেকেই চেষ্টা করবে');
+  }
+  return ok;
+}
+
+/* ---------- queue flush: sequential, latest data, never silently drops ---------- */
+async function flushSyncQueue(manual){
+  if(_flushing) return;
+  migrateOldQueue();
+  const q=getQueue();
+  if(!q.length){ updateSyncBadge(); if(manual) toast('✓ সব সিঙ্ক করা আছে'); return; }
+  if(!navigator.onLine){ updateSyncBadge(); if(manual) toast('📶 এখন অফলাইন'); return; }
+
+  _flushing=true;
+  let sent=0, failed=0;
+  try{
+    for(const item of q){
+      if(!navigator.onLine) break;
+      const lead=leads.find(x=>x.id===item.id);
+      if(!lead){ dequeueLead(item.id); continue; }   // deleted locally — drop from queue
+      const ok=await sendToSheet(lead);
+      if(ok){ dequeueLead(item.id); sent++; }
+      else { bumpTries(item.id); failed++; }
+      await new Promise(r=>setTimeout(r,SYNC_GAP_MS));
+    }
+  } finally {
+    _flushing=false;
+    updateSyncBadge();
+  }
+  if(sent>0) toast('☁️ '+sent+' টি এন্ট্রি Sheet-এ সিঙ্ক হয়েছে');
+  else if(manual && failed>0) toast('⚠️ সিঙ্ক হয়নি — নেট চেক করুন');
+}
+
+/* ---------- triggers: online, tab visible, window focus, periodic, startup ---------- */
+window.addEventListener('online',()=>flushSyncQueue());
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') flushSyncQueue(); });
+window.addEventListener('focus',()=>flushSyncQueue());
+setInterval(()=>{ if(navigator.onLine && pendingCount()>0) flushSyncQueue(); },SYNC_POLL_MS);
 
 /* ═══════════════════════════════════════════════
    RENDER
@@ -1129,6 +1249,7 @@ function openDetail(id){
     [l.area,l.district].filter(Boolean).join(', ')||'—';
   document.getElementById('d_product').textContent=l.product||'—';
   document.getElementById('d_source').textContent=l.source||'—';
+  document.getElementById('d_campaign').textContent=l.campaignSource||'—';
   document.getElementById('d_price').textContent=l.priceQuoted||'—';
   document.getElementById('d_order').textContent=l.order||'—';
   document.getElementById('d_first').textContent=formatDate(l.first);
@@ -1160,15 +1281,12 @@ document.getElementById('d_copyMsgBtn').addEventListener('click',async()=>{
   l._msgRot=rot+1;
   l.lastMessage=text;
   await saveLeads();
-  if(navigator.onLine){
-    syncToSheet(l).then(ok=>{ if(!ok) addToSyncQueue(l); });
-  } else {
-    addToSyncQueue(l);
-  }
+  syncLead(l,{silent:true});
 });
 document.getElementById('d_todayBtn').addEventListener('click',async()=>{
   const l=leads.find(x=>x.id===detailId); if(!l) return;
   l.last=todayISO(); await saveLeads(); render();
+  syncLead(l,{silent:true});
   // refresh detail
   const raw=leads.find(x=>x.id===detailId);
   if(raw) openDetail(detailId);
@@ -1180,6 +1298,7 @@ document.getElementById('d_editBtn').addEventListener('click',()=>{
 });
 document.getElementById('d_delBtn').addEventListener('click',async()=>{
   if(!confirm('এই এন্ট্রিটা মুছে ফেলতে চাও?')) return;
+  dequeueLead(detailId);
   leads=leads.filter(x=>x.id!==detailId);
   await saveLeads();
   document.getElementById('detailOverlay').classList.remove('show');
@@ -1207,7 +1326,7 @@ function openAdd(){
   document.getElementById('editId').value='';
   pickType(activeTab==='নিয়মিত কাস্টমার'?'নিয়মিত কাস্টমার':'লিড');
   pickSource('Facebook');
-  ['f_name','f_owner','f_phone','f_area','f_district','f_product','f_notes','f_lastorder','f_lastmsg'].forEach(id=>document.getElementById(id).value='');
+  ['f_name','f_owner','f_phone','f_area','f_district','f_campaign','f_product','f_notes','f_lastorder','f_lastmsg'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f_first').value=todayISO();
   document.getElementById('f_last').value=todayISO();
   document.getElementById('f_price').value='না';
@@ -1227,6 +1346,7 @@ function openEdit(id){
   document.getElementById('f_phone').value=l.phone||'';
   document.getElementById('f_area').value=l.area||'';
   document.getElementById('f_district').value=l.district||'';
+  document.getElementById('f_campaign').value=l.campaignSource||'';
   document.getElementById('f_product').value=l.product||'';
   document.getElementById('f_first').value=l.first||'';
   document.getElementById('f_last').value=l.last||'';
@@ -1257,6 +1377,7 @@ async function saveForm(){
     area:document.getElementById('f_area').value.trim(),
     district:document.getElementById('f_district').value.trim(),
     source:pendingSource,
+    campaignSource:document.getElementById('f_campaign').value.trim(),
     product:document.getElementById('f_product').value.trim(),
     first:document.getElementById('f_first').value,
     last:document.getElementById('f_last').value,
@@ -1280,15 +1401,7 @@ async function saveForm(){
   render();
   toast(id?'✓ আপডেট হয়েছে':'✓ নতুন এন্ট্রি যোগ হয়েছে');
   // Google Sheet sync
-  if(savedLead && navigator.onLine){
-    syncToSheet(savedLead).then(ok=>{
-      if(ok) toast('☁️ Google Sheet-এ সেভ হয়েছে');
-      else{ addToSyncQueue(savedLead); }
-    });
-  } else if(savedLead){
-    addToSyncQueue(savedLead);
-    toast('📶 Offline — পরে Sheet-এ যাবে');
-  }
+  if(savedLead) syncLead(savedLead);
 }
 
 function closeAll(){
@@ -1390,6 +1503,9 @@ if('serviceWorker' in navigator){
 }
 
 setTab('লিড');
+migrateOldQueue();
+updateSyncBadge();
+setTimeout(()=>flushSyncQueue(),1500);
 </script>
 </body>
 </html>
