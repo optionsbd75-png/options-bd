@@ -1,10 +1,8 @@
-const CACHE = 'obd-v4';
-const ASSETS = ['./', './index.html'];
+const CACHE = 'obd-v5';
+const ASSETS = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS))
-  );
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
   self.skipWaiting();
 });
 
@@ -18,13 +16,39 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  e.respondWith(
-    fetch(e.request)
-      .then(response => {
-        const clone = response.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-        return response;
+  const req = e.request;
+  if (req.method !== 'GET') return;
+
+  const url = new URL(req.url);
+
+  if (url.hostname.indexOf('script.google.com') !== -1 ||
+      url.hostname.indexOf('script.googleusercontent.com') !== -1) {
+    return;
+  }
+
+  if (url.origin === self.location.origin) {
+    e.respondWith(
+      caches.match(req).then(cached => {
+        const network = fetch(req).then(resp => {
+          if (resp && resp.status === 200) {
+            const clone = resp.clone();
+            caches.open(CACHE).then(c => c.put(req, clone));
+          }
+          return resp;
+        }).catch(() => cached);
+        return cached || network;
       })
-      .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  e.respondWith(
+    fetch(req).then(resp => {
+      if (resp && resp.status === 200) {
+        const clone = resp.clone();
+        caches.open(CACHE).then(c => c.put(req, clone));
+      }
+      return resp;
+    }).catch(() => caches.match(req))
   );
 });
