@@ -1613,9 +1613,14 @@ document.getElementById('pinOverlay').addEventListener('click',e=>{if(e.target.i
 /* ═══════════════════════════════════════════════
    SERVICE WORKER
 ═══════════════════════════════════════════════ */
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('./service-worker.js')
+      .catch(() => {});
+  });
 }
+
 
 setTab('লিড');
 migrateOldQueue();
