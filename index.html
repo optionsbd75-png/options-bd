@@ -308,6 +308,36 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
 
 .footnote{text-align:center;padding:12px 24px 4px;font-size:11px;color:var(--muted);}
 .spacer{height:90px;}
+
+/* ── AI Message Section ── */
+.ai-section{margin-bottom:12px;}
+.dbtn-ai{
+  background:#F3E5F5;color:#6A1B9A;
+  width:100%;border:none;border-radius:10px;
+  padding:12px;font-size:13px;font-weight:700;
+  font-family:inherit;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.dbtn-ai:active{opacity:.85;}
+.dbtn-ai:disabled{opacity:.55;cursor:not-allowed;}
+.ai-loading{text-align:center;padding:12px;font-size:13px;color:var(--muted);display:none;}
+.ai-result{display:none;margin-top:10px;}
+.ai-result textarea{
+  width:100%;min-height:100px;padding:11px 12px;
+  border:1.5px solid #CE93D8;border-radius:10px;
+  font-family:inherit;font-size:13px;
+  background:#F3E5F5;color:var(--ink);resize:vertical;
+}
+.ai-result textarea:focus{outline:none;border-color:#6A1B9A;}
+.dbtn-ai-copy{
+  width:100%;margin-top:8px;
+  background:#6A1B9A;color:#fff;
+  border:none;border-radius:10px;padding:11px;
+  font-size:13px;font-weight:700;
+  font-family:inherit;cursor:pointer;
+}
+.dbtn-ai-copy:active{opacity:.85;}
+.ai-error{display:none;color:var(--crimson);font-size:12px;margin-top:6px;text-align:center;}
 </style>
 </head>
 <body>
@@ -588,6 +618,17 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
       <button class="dbtn dbtn-today" id="d_todayBtn">✓ আজ যোগাযোগ হয়েছে</button>
       <button class="dbtn dbtn-inact" id="d_inactBtn">🔵 ইনঅ্যাক্টিভ করো</button>
       <button class="dbtn dbtn-reactivate" id="d_reactBtn" style="display:none;">🟢 অ্যাক্টিভ করো (ফেরাও)</button>
+    </div>
+
+    <!-- ══ AI MESSAGE SECTION ══ -->
+    <div class="ai-section">
+      <button class="dbtn-ai" id="d_aiBtn">🤖 AI মেসেজ তৈরি করো</button>
+      <div class="ai-loading" id="aiLoading">⏳ AI লিখছে…</div>
+      <div class="ai-result" id="aiResult">
+        <textarea id="aiMsgText" placeholder="AI-generated message এখানে দেখাবে…"></textarea>
+        <button class="dbtn-ai-copy" id="d_aiCopyBtn">📋 AI মেসেজ কপি করো</button>
+        <div class="ai-error" id="aiError"></div>
+      </div>
     </div>
 
     <div class="detail-section">
@@ -1347,6 +1388,9 @@ function openDetail(id){
   document.getElementById('d_callBtn').href='tel:'+ph;
   document.getElementById('d_waBtn').href='https://wa.me/'+ph;
 
+  // AI section reset করো নতুন customer খুললে
+  resetAiSection();
+
   document.getElementById('detailOverlay').classList.add('show');
 }
 
@@ -1609,6 +1653,106 @@ document.getElementById('changePinBtn').addEventListener('click',()=>{
 });
 document.getElementById('pinCancelBtn').addEventListener('click',()=>document.getElementById('pinOverlay').classList.remove('show'));
 document.getElementById('pinOverlay').addEventListener('click',e=>{if(e.target.id==='pinOverlay') document.getElementById('pinOverlay').classList.remove('show');});
+
+/* ═══════════════════════════════════════════════
+   AI MESSAGE INTEGRATION
+═══════════════════════════════════════════════ */
+function resetAiSection(){
+  document.getElementById('aiLoading').style.display='none';
+  document.getElementById('aiResult').style.display='none';
+  document.getElementById('aiError').style.display='none';
+  document.getElementById('aiMsgText').value='';
+  const btn=document.getElementById('d_aiBtn');
+  btn.disabled=false;
+  btn.textContent='🤖 AI মেসেজ তৈরি করো';
+}
+
+document.getElementById('d_aiBtn').addEventListener('click', async ()=>{
+  const l=leads.find(x=>x.id===detailId);
+  if(!l){ toast('⚠️ কাস্টমার পাওয়া যায়নি'); return; }
+
+  // UI: loading state
+  const btn=document.getElementById('d_aiBtn');
+  btn.disabled=true;
+  btn.textContent='⏳ তৈরি হচ্ছে…';
+  document.getElementById('aiLoading').style.display='block';
+  document.getElementById('aiResult').style.display='none';
+  document.getElementById('aiError').style.display='none';
+
+  // শুধু whitelisted fields পাঠাবো
+  const customerData={
+    shopName: l.name||'',
+    ownerName: l.owner||'',
+    area: l.area||'',
+    district: l.district||'',
+    product: l.product||'',
+    status: l.order||'',
+    customerType: l.type||'',
+    firstContact: l.first||'',
+    lastContact: l.last||'',
+    notes: l.notes||'',
+    lastMessage: l.lastMessage||'',
+    action: enrich(l).action||''
+  };
+
+  try{
+    const cbName='__aiCb'+Date.now();
+    const url=SCRIPT_URL
+      +'?action=generate_ai_message'
+      +'&customerData='+encodeURIComponent(JSON.stringify(customerData))
+      +'&callback='+cbName;
+
+    const result = await new Promise((resolve, reject)=>{
+      let done=false;
+      const timer=setTimeout(()=>{
+        if(!done){ done=true; try{delete window[cbName];}catch(e){} reject(new Error('timeout')); }
+      }, 25000);
+      window[cbName]=function(resp){
+        if(done) return; done=true;
+        clearTimeout(timer);
+        try{delete window[cbName];}catch(e){}
+        resolve(resp);
+      };
+      const s=document.createElement('script');
+      s.async=true;
+      s.onerror=()=>{ if(!done){ done=true; clearTimeout(timer); try{delete window[cbName];}catch(e){} reject(new Error('network')); } };
+      s.src=url;
+      document.head.appendChild(s);
+    });
+
+    document.getElementById('aiLoading').style.display='none';
+
+    if(result && result.success && result.message){
+      document.getElementById('aiMsgText').value=result.message;
+      document.getElementById('aiResult').style.display='block';
+      btn.textContent='🔄 আবার তৈরি করো';
+      btn.disabled=false;
+    } else {
+      const errMsg=(result&&result.error)||'AI থেকে response পাওয়া যায়নি';
+      document.getElementById('aiError').textContent='⚠️ '+errMsg;
+      document.getElementById('aiError').style.display='block';
+      btn.textContent='🤖 AI মেসেজ তৈরি করো';
+      btn.disabled=false;
+    }
+  } catch(err){
+    document.getElementById('aiLoading').style.display='none';
+    let errTxt='AI কাজ করছে না — পরে চেষ্টা করো।';
+    if(err.message==='timeout') errTxt='⏳ সময় বেশি লাগছে — আবার চেষ্টা করো।';
+    else if(err.message==='network') errTxt='📶 নেটওয়ার্ক সমস্যা — নেট চেক করো।';
+    document.getElementById('aiError').textContent=errTxt;
+    document.getElementById('aiError').style.display='block';
+    btn.textContent='🤖 AI মেসেজ তৈরি করো';
+    btn.disabled=false;
+  }
+});
+
+document.getElementById('d_aiCopyBtn').addEventListener('click',async()=>{
+  const text=document.getElementById('aiMsgText').value.trim();
+  if(!text){ toast('⚠️ মেসেজ নেই'); return; }
+  copyText(text,'🤖 AI মেসেজ কপি হয়েছে');
+  // NOTE: AI copy করলে lastContact বা lastMessage আপডেট হবে না।
+  // User নিজে "আজ যোগাযোগ হয়েছে" চাপলে সেটা update হবে।
+});
 
 /* ═══════════════════════════════════════════════
    SERVICE WORKER
