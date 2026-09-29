@@ -698,7 +698,8 @@ let pendingActive= 'অ্যাক্টিভ';
 ═══════════════════════════════════════════════ */
 const BN = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
 const toBn = n => String(n).replace(/[0-9]/g, d => BN[d]);
-const todayISO = () => new Date().toISOString().slice(0,10);
+/* Release 1: বাংলাদেশের তারিখ (Asia/Dhaka = UTC+6, DST নেই) — phone-এর timezone যা-ই থাক */
+const todayISO = () => new Date(Date.now() + 6*3600000).toISOString().slice(0,10);
 const esc = s => !s ? '' : String(s).replace(/[&<>"']/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -707,9 +708,9 @@ function isInactive(l){ return (l.activeState||'অ্যাক্টিভ')===
 
 function daysSince(iso){
   if(!iso) return null;
-  const d  = new Date(iso+'T00:00:00');
-  const now= new Date();
-  const t  = new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  /* Release 1: "আজ" = todayISO()-এর বাংলাদেশ তারিখ; দুই দিকই UTC midnight ধরে হিসাব */
+  const d  = Date.parse(iso+'T00:00:00Z');
+  const t  = Date.parse(todayISO()+'T00:00:00Z');
   return Math.floor((t-d)/86400000);
 }
 
