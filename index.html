@@ -386,8 +386,8 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
     </div>
     <div class="dash-title" style="margin-top:16px;">ইনঅ্যাক্টিভ — পরে কাজ (১ মাস+)</div>
     <div class="dash-grid">
-      <div class="stat s-inactdue" onclick="setFilter('inact:due','📨 ইনঅ্যাক্টিভ — মেসেজের সময়')">
-        <div class="num" id="sc8">০</div><div class="lab">📨 মেসেজের সময় (৩০+ দিন)</div>
+      <div class="stat s-inactdue" onclick="setFilter('inact:due','📨 ইনঅ্যাক্টিভ — ৩০+ দিন')">
+        <div class="num" id="sc8">০</div><div class="lab">📨 ৩০+ দিন পুরোনো (নিজে থেকে মেসেজ নয়)</div>
       </div>
       <div class="stat s-inact" onclick="setFilter('inact:all','🔵 মোট ইনঅ্যাক্টিভ')">
         <div class="num" id="sc9">০</div><div class="lab">🔵 মোট ইনঅ্যাক্টিভ</div>
@@ -460,7 +460,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
         <button type="button" data-a="অ্যাক্টিভ" class="on" onclick="pickActive('অ্যাক্টিভ')">🟢 অ্যাক্টিভ (এখন কাজ)</button>
         <button type="button" data-a="ইনঅ্যাক্টিভ" onclick="pickActive('ইনঅ্যাক্টিভ')">🔵 ইনঅ্যাক্টিভ (পরে)</button>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:5px;">রেসপন্স নেই / এখন কিনবে না — ইনঅ্যাক্টিভ করলে রোজকার কাজ থেকে সরে যাবে, ১ মাস পর মেসেজের তালিকায় আসবে। নিয়মিত কাস্টমার সাধারণত অ্যাক্টিভই রাখুন।</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:5px;">রেসপন্স নেই / এখন কিনবে না — ইনঅ্যাক্টিভ করলে রোজকার কাজ থেকে সরে যাবে, App নিজে থেকে কোনো মেসেজ দেবে না। নিয়মিত কাস্টমার সাধারণত অ্যাক্টিভই রাখুন।</div>
     </div>
 
     <div class="field">
@@ -535,16 +535,16 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
         </select>
       </div>
       <div class="field">
-        <label>ফলো-আপ ধাপ (শুধু ফোনে থাকে)</label>
+        <label>ফলো-আপ: শেষ কোন কাজটা হয়েছে?</label>
         <select id="f_fustage">
-          <option value="Unknown">জানা নেই</option>
-          <option value="none">কার্ড এখনো পাঠানো হয়নি</option>
-          <option value="card">কার্ড/প্রথম মেসেজ পাঠানো</option>
-          <option value="chobi">/chobi পাঠানো</option>
-          <option value="phone">/phone (কল) হয়েছে</option>
-          <option value="chobi2">/chobi2 পাঠানো</option>
-          <option value="chobi3">/chobi3 পাঠানো</option>
-          <option value="dormant">Dormant</option>
+          <option value="none">দামসহ ছবি (কার্ড) এখনো পাঠানো হয়নি</option>
+          <option value="card">দামসহ ছবি (কার্ড) পাঠানো হয়েছে</option>
+          <option value="chobi">১ম ফলো-আপ মেসেজ পাঠানো হয়েছে</option>
+          <option value="phone">ফোন করা হয়েছে</option>
+          <option value="chobi2">২য় ফলো-আপ মেসেজ পাঠানো হয়েছে</option>
+          <option value="chobi3">শেষ ফলো-আপ মেসেজ পাঠানো হয়েছে</option>
+          <option value="dormant">Dormant — আর কিছু পাঠানো হবে না</option>
+          <option value="Unknown">জানা নেই (App কিছু দেখাবে না)</option>
         </select>
       </div>
       <div class="field">
@@ -712,7 +712,8 @@ function normalizePhone(p){
 const FU_ORDER = ['card','chobi','phone','chobi2','chobi3'];
 const FU_GAP   = {card:2, chobi:2, phone:3, chobi2:5};          // এই ধাপের পর কত দিন অপেক্ষা
 const FU_NEXT  = {card:'chobi', chobi:'phone', phone:'chobi2', chobi2:'chobi3'};
-const FU_LABEL = {Unknown:'জানা নেই', none:'কার্ড পাঠানো হয়নি', card:'কার্ড/প্রথম মেসেজ', chobi:'/chobi', phone:'/phone (কল)', chobi2:'/chobi2', chobi3:'/chobi3', dormant:'Dormant'};
+const FU_LABEL = {Unknown:'জানা নেই', none:'দামসহ ছবি (কার্ড) এখনো পাঠানো হয়নি', card:'দামসহ ছবি (কার্ড) পাঠানো হয়েছে', chobi:'১ম ফলো-আপ মেসেজ পাঠানো হয়েছে', phone:'ফোন করা হয়েছে', chobi2:'২য় ফলো-আপ মেসেজ পাঠানো হয়েছে', chobi3:'শেষ ফলো-আপ মেসেজ পাঠানো হয়েছে', dormant:'Dormant — আর কিছু পাঠানো হবে না'};
+const FU_NEXT_LABEL = {chobi:'১ম ফলো-আপ মেসেজ', phone:'ফোন করা', chobi2:'২য় ফলো-আপ মেসেজ', chobi3:'শেষ ফলো-আপ মেসেজ'};
 function fuStageOf(l){ return l.fuStage || 'Unknown'; }   // পুরোনো লিড: field নেই = Unknown, অনুমান নয়
 function daysBetween(fromIso){ return daysSince(fromIso); }
 /* পরের ধাপ: {stage, next, due, wait, elapsed} */
@@ -834,10 +835,10 @@ function msgFor(el, rot){
   if (fu.stage==='Unknown'){
     return '⛔ ফলো-আপ ধাপ জানা নেই — App নিজে মেসেজ দেবে না। ডকের তালিকায় থাকলে ফোন করুন; কথা হলে ↩ চাপুন, না ধরলে /phone পাঠিয়ে Edit-এ ধাপ বসান।';
   }
-  if (fu.stage==='none') return '⛔ কার্ড এখনো পাঠানো হয়নি — ৩–৪টি কার্ড পাঠান, তারপর Edit-এ ধাপ "কার্ড/প্রথম মেসেজ পাঠানো" দিন।';
+  if (fu.stage==='none') return '⛔ কার্ড এখনো পাঠানো হয়নি — দামসহ ৩–৪টা ছবি (কার্ড) পাঠান, তারপর Edit-এ "দামসহ ছবি (কার্ড) পাঠানো হয়েছে" দিন।';
   if (fu.next==='dormant') return DORMANT_NOTE;   // /khobor-এর বাস্তব কারণ App যাচাই করতে পারে না — তাই কখনো auto নয়
   /* ── F-2 ধাপ ১: শিডিউলে সময় না হলে keyword থাকলেও মেসেজ নয় ── */
-  if (!fu.due) return '⛔ এখন অপেক্ষা করুন — পরের ধাপ (' + FU_LABEL[fu.next] + ') ' + toBn(fu.wait) + ' দিন পর।';
+  if (!fu.due) return '⛔ এখন অপেক্ষা করুন — পরের কাজ: ' + FU_NEXT_LABEL[fu.next] + ', ' + toBn(fu.wait) + ' দিন পর।';
 
   /* ── F-2 ধাপ ২: সময় হলে keyword দেখা; একাধিক পরিস্থিতি = অস্পষ্ট ── */
   const kwOrder = notes.includes('অর্ডার') && hasAny(notes, KW_ORDER);
@@ -1186,9 +1187,9 @@ function enrich(l){
   // ইনঅ্যাক্টিভ লিড — রোজকার কাউন্টারে গোনা হবে না
   if(isInactive(l)){
     if(d!==null && d>=INACTIVE_DAYS){
-      return {...l,type,days:d,activeState:'ইনঅ্যাক্টিভ',status:{label:'মেসেজের সময়',cls:'bg-teal'},action:'ইনঅ্যাক্টিভ — হালকা যোগাযোগ করো'};
+      return {...l,type,days:d,activeState:'ইনঅ্যাক্টিভ',status:{label:'৩০+ দিন',cls:'bg-teal'},action:'ইনঅ্যাক্টিভ — বাস্তব কারণ থাকলে Quick Reply'};
     }
-    return {...l,type,days:d,activeState:'ইনঅ্যাক্টিভ',status:{label:'ইনঅ্যাক্টিভ',cls:'bg-slate'},action:'পরে কাজ — ১ মাস পর মেসেজ'};
+    return {...l,type,days:d,activeState:'ইনঅ্যাক্টিভ',status:{label:'ইনঅ্যাক্টিভ',cls:'bg-slate'},action:'ইনঅ্যাক্টিভ — কিছু পাঠাবেন না'};
   }
   const act=actionFor(d,type,l);
   if(act==='ধাপ ঠিক করুন') return {...l,type,days:d,activeState:l.activeState||'অ্যাক্টিভ',status:{label:'ধাপ জানা নেই',cls:'bg-slate'},action:act};
@@ -1474,13 +1475,13 @@ document.getElementById('d_inactBtn').addEventListener('click',async()=>{
   const l=leads.find(x=>x.id===detailId); if(!l) return;
   // সেফটি-গার্ড: নিয়মিত কাস্টমার ভুলে ইনঅ্যাক্টিভ হয়ে গেলে রিঅর্ডার রিমাইন্ডার বন্ধ হবে
   if(l.type==='নিয়মিত কাস্টমার'){
-    if(!confirm('⚠️ এটা নিয়মিত কাস্টমার। ইনঅ্যাক্টিভ করলে রিঅর্ডার ও খোঁজ-নেওয়ার রিমাইন্ডার বন্ধ হয়ে যাবে — শুধু ১ মাস পর একটা মেসেজ আসবে। নিশ্চিত?')) return;
+    if(!confirm('⚠️ এটা নিয়মিত কাস্টমার। ইনঅ্যাক্টিভ করলে রিঅর্ডার ও খোঁজ-নেওয়ার রিমাইন্ডার বন্ধ হয়ে যাবে। নিশ্চিত?')) return;
   }
   l.activeState='ইনঅ্যাক্টিভ';
   await saveLeads(); render();
   syncLead(l,{silent:true});
   if(leads.find(x=>x.id===detailId)) openDetail(detailId);
-  toast('🔵 ইনঅ্যাক্টিভ করা হয়েছে — ১ মাস পর মেসেজের তালিকায় আসবে');
+  toast('🔵 ইনঅ্যাক্টিভ করা হয়েছে — রোজকার কাজ থেকে সরানো হলো');
 });
 /* অ্যাক্টিভ করে ফেরানোর বোতাম */
 document.getElementById('d_reactBtn').addEventListener('click',async()=>{
