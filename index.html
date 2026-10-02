@@ -531,6 +531,19 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
         </select>
       </div>
       <div class="field">
+        <label>ফলো-আপ ধাপ (শুধু ফোনে থাকে)</label>
+        <select id="f_fustage">
+          <option value="Unknown">জানা নেই</option>
+          <option value="none">কার্ড এখনো পাঠানো হয়নি</option>
+          <option value="card">কার্ড/প্রথম মেসেজ পাঠানো</option>
+          <option value="chobi">/chobi পাঠানো</option>
+          <option value="phone">/phone (কল) হয়েছে</option>
+          <option value="chobi2">/chobi2 পাঠানো</option>
+          <option value="chobi3">/chobi3 পাঠানো</option>
+          <option value="dormant">Dormant</option>
+        </select>
+      </div>
+      <div class="field">
         <label>অর্ডার স্ট্যাটাস</label>
         <select id="f_order">
           <option>অর্ডার হয়নি</option>
@@ -587,6 +600,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
       <button class="dbtn dbtn-copy" id="d_copyMsgBtn">📝 মেসেজ কপি</button>
       <button class="dbtn dbtn-copy" id="d_copyNumBtn">📋 নম্বর কপি</button>
       <button class="dbtn dbtn-today" id="d_todayBtn">✓ আজ যোগাযোগ হয়েছে</button>
+      <button class="dbtn dbtn-today" id="d_replyBtn">↩ উত্তর দিয়েছে</button>
       <button class="dbtn dbtn-inact" id="d_inactBtn">🔵 ইনঅ্যাক্টিভ করো</button>
       <button class="dbtn dbtn-reactivate" id="d_reactBtn" style="display:none;">🟢 অ্যাক্টিভ করো (ফেরাও)</button>
     </div>
@@ -594,6 +608,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
     <div class="detail-section">
       <div class="ds-title">তথ্য</div>
       <div class="detail-row"><span class="dk">মালিকের নাম</span><span class="dv" id="d_owner">—</span></div>
+      <div class="detail-row"><span class="dk">ফলো-আপ ধাপ</span><span class="dv" id="d_fustage">—</span></div>
       <div class="detail-row"><span class="dk">এলাকা</span><span class="dv" id="d_area">—</span></div>
       <div class="detail-row"><span class="dk">প্রোডাক্ট</span><span class="dv" id="d_product">—</span></div>
       <div class="detail-row"><span class="dk">Lead Source</span><span class="dv" id="d_source">—</span></div>
@@ -689,6 +704,24 @@ function normalizePhone(p){
   return n;
 }
 
+/* ═══ F-1: ফলো-আপ ধাপ (fuStage / fuStageDate) — শুধু ফোনের localStorage-এ, Sheet-এ যায় না ═══ */
+const FU_ORDER = ['card','chobi','phone','chobi2','chobi3'];
+const FU_GAP   = {card:2, chobi:2, phone:3, chobi2:5};          // এই ধাপের পর কত দিন অপেক্ষা
+const FU_NEXT  = {card:'chobi', chobi:'phone', phone:'chobi2', chobi2:'chobi3'};
+const FU_LABEL = {Unknown:'জানা নেই', none:'কার্ড পাঠানো হয়নি', card:'কার্ড/প্রথম মেসেজ', chobi:'/chobi', phone:'/phone (কল)', chobi2:'/chobi2', chobi3:'/chobi3', dormant:'Dormant'};
+function fuStageOf(l){ return l.fuStage || 'Unknown'; }   // পুরোনো লিড: field নেই = Unknown, অনুমান নয়
+function daysBetween(fromIso){ return daysSince(fromIso); }
+/* পরের ধাপ: {stage, next, due, wait, elapsed} */
+function fuNext(l){
+  const st = fuStageOf(l);
+  if (st==='Unknown' || st==='none') return {stage:st, next:null, due:false};
+  if (st==='chobi3' || st==='dormant') return {stage:st, next:'dormant', due:false};
+  const elapsed = l.fuStageDate ? daysBetween(l.fuStageDate) : null;
+  if (elapsed===null) return {stage:'Unknown', next:null, due:false};
+  const gap = FU_GAP[st];
+  return {stage:st, next:FU_NEXT[st], due: elapsed>=gap, wait: Math.max(0,gap-elapsed), elapsed};
+}
+
 function statusFor(days, type){
   if(days===null) return {label:'তথ্য নেই',cls:'bg-yellow'};
   if(type==='নিয়মিত কাস্টমার'){
@@ -696,105 +729,142 @@ function statusFor(days, type){
     if(days<=44) return {label:'খোঁজ নেওয়ার সময়',cls:'bg-yellow'};
     return {label:'সম্পর্ক ঠান্ডা',cls:'bg-orange'};
   }
-  if(days<=4)  return {label:'সক্রিয়',cls:'bg-green'};
+  /* SOP v2.0 Section 10 (1 Oct 2026) */
+  if(days<=1)  return {label:'সক্রিয়',cls:'bg-green'};
   if(days<=14) return {label:'ফলো-আপ দরকার',cls:'bg-yellow'};
-  if(days<=29) return {label:'নিষ্ক্রিয়',cls:'bg-orange'};
+  if(days<=29) return {label:'নিষ্ক্রিয় (Dormant)',cls:'bg-orange'};
   return {label:'পুনঃসক্রিয় করা দরকার',cls:'bg-crimson'};
 }
 
-function actionFor(days, type){
+/* লিড ফলো-আপ: দিন ০ কার্ড → ২ /chobi → ৪–৫ কল (+/phone) → ৭–৮ /chobi2 → ১২–১৪ /chobi3 → ১৫+ Dormant → ৩০+ /khobor বা /salam */
+function actionFor(days, type, l){
+  if(type!=='নিয়মিত কাস্টমার' && l && fuStageOf(l)!=='Unknown'){
+    const n = fuNext(l);
+    if (n.stage==='none') return 'কার্ড পাঠাও';
+    if (n.next==='dormant') return 'Dormant — কিছু পাঠাবেন না';
+    if (!n.due) return 'অপেক্ষা করো';
+    if (n.next==='phone') return 'কল করো';
+    if (n.next==='chobi3') return 'শেষ ফলো-আপ মেসেজ পাঠাও';
+    return 'Soft follow-up মেসেজ পাঠাও';
+  }
   if(days===null) return 'শেষ যোগাযোগের তারিখ দিন';
   if(type==='নিয়মিত কাস্টমার'){
     if(days<=14) return 'অপেক্ষা করো';
-    if(days<=44) return 'খোঁজ নিন / নতুন স্টক জানান';
+    if(days<=44) return 'খোঁজ নিন (/feedback)';
     return 'সরাসরি যোগাযোগ করো';
   }
-  if(days<=3)  return 'অপেক্ষা করো';
-  if(days<=7)  return 'Soft follow-up মেসেজ পাঠাও';
-  if(days<=14) return 'কল করো';
-  if(days<=29) return 'শেষ ফলো-আপ মেসেজ পাঠাও';
+  if(days<=1)  return 'অপেক্ষা করো';
+  if(days<=3)  return 'Soft follow-up মেসেজ পাঠাও';
+  if(days<=6)  return 'কল করো';
+  if(days<=11) return 'Soft follow-up মেসেজ পাঠাও';
+  if(days<=14) return 'শেষ ফলো-আপ মেসেজ পাঠাও';
+  if(days<=29) return 'Dormant — কিছু পাঠাবেন না';
   return 'পুনঃসক্রিয়করণ ক্যাম্পেইনে যোগ করো';
 }
 
-const SILENT_VARIANTS = [
-  'ভাই, আপনার দোকানে তো {PRODUCT} ভালো চলে বলেছিলেন — সেই ধরনের নতুন কিছু ডিজাইন এসেছে। দেখতে চাইলে পাঠাই।',
-  'ভাই, আপনার এলাকার বর্তমান চাহিদা কেমন? কোন ধরনের ডিজাইন বেশি চলছে জানালে সেই অনুযায়ী কিছু কালেকশন সাজেস্ট করতে পারি।',
-  'ভাই, নতুন স্টক এসেছে। কিছু ডিজাইন আপনার দোকানে ভালো যাবে মনে হলো। দেখতে চাইলে পাঠাই।'
-];
-const REACT_VARIANTS = [
-  'আসসালামু আলাইকুম ভাই। নতুন কিছু কালেকশন এসেছে। আপনার দোকানে ভালো চলবে মনে হলো। দেখতে চাইলে পাঠাই 🙂',
-  'আসসালামু আলাইকুম ভাই। অনেকদিন কথা হয় না। ব্যবসা কেমন চলছে? নতুন কিছু লাগলে জানাবেন 🤝',
-  'ভাই, সামনে সিজন আসছে। এখন থেকে স্টক গুছিয়ে রাখলে শেষ মুহূর্তের চাপ কম থাকে।'
-];
-/* ইনঅ্যাক্টিভ লিডের জন্য হালকা যোগাযোগ মেসেজ */
-const INACTIVE_VARIANTS = [
-  'আসসালামু আলাইকুম ভাই। অনেকদিন কথা হয় না — ব্যবসা কেমন চলছে? নতুন কিছু কালেকশন এসেছে, দেখতে চাইলে পাঠাই 🙂',
-  'ভাই, আশা করি ভালো আছেন। সামনে সিজন আসছে — নতুন স্টক গুছিয়েছি। আপনার দোকানের জন্য কিছু ডিজাইন পাঠাবো?',
-  'আসসালামু আলাইকুম ভাই। নতুন কালেকশন এসেছে, ভাবলাম আপনাকে একবার জানাই। আগ্রহ থাকলে ছবি পাঠাই।'
-];
-function fillProduct(tpl, product){
-  const KNOWN_PRODUCTS = ['শার্ট','কাতুয়া','পাঞ্জাবি','পাঞ্জাবী','কাবলি','শার্টস'];
-  const clean = (KNOWN_PRODUCTS.includes((product||'').trim())) ? product.trim() : 'প্রোডাক্ট';
-  return tpl.replace('{PRODUCT}', clean);
+/* WhatsApp Quick Reply Library v2.2 — হুবহু মেসেজ। দাম নেই, "নতুন স্টক/সিজন/ভালো চলবে" দাবি নেই। */
+const QR = {
+  chobi:   'আসসালামু আলাইকুম ভাই, আগে যে ডিজাইনগুলো পাঠিয়েছিলাম, দেখেছেন? আপনার দোকানে কোনগুলো চলবে মনে হয়, জানাবেন।',
+  chobi2:  'আসসালামু আলাইকুম ভাই, ডিজাইনগুলোর মধ্যে কোনোটা পছন্দ হলে ওই ছবিটা এখানে পাঠিয়ে দিন, কতগুলো লাগবে জানালে অর্ডার সাজিয়ে দেব।',
+  chobi3:  'আসসালামু আলাইকুম ভাই, ডিজাইন বা অর্ডার নিয়ে কিছু জানার থাকলে বলবেন, জানিয়ে দেব।',
+  phone:   'আসসালামু আলাইকুম ভাই, আপনাকে ফোন করেছিলাম, মনে হয় ব্যস্ত ছিলেন। সময় পেলে জানাবেন, কথা বলে নেব।',
+  ashbe:   'আসসালামু আলাইকুম ভাই, আমাদের এখানে আসবেন বলেছিলেন। কবে আসতে পারবেন জানালে আমরা প্রস্তুত থাকব।',
+  khobor:  'আসসালামু আলাইকুম ভাই, কেমন আছেন? ব্যবসা কেমন চলছে? কিছু লাগলে জানাবেন।',
+  salam:   'আসসালামু আলাইকুম ভাই, কেমন আছেন? আমাদের কাছে কিছু দরকার হলে জানাবেন।',
+  order:   'আসসালামু আলাইকুম ভাই, কেমন আছেন? আবার অর্ডার দেওয়ার দরকার হলে জানাবেন, কোন ধরনের ডিজাইন লাগবে বললে ছবি পাঠিয়ে দেব।',
+  feedback:'আসসালামু আলাইকুম ভাই, আগের পোশাকগুলো কেমন বিক্রি হলো? কোনো মতামত থাকলে জানাবেন।'
+};
+/* ⛔ দিয়ে শুরু হলে এটা buyer-এর মেসেজ নয় — কপি/লগ হবে না, শুধু নির্দেশনা দেখাবে */
+const WAIT_NOTE = '⛔ এখন অপেক্ষা করুন — শেষ যোগাযোগের পর অন্তত ২ দিন যাক।';
+const DORMANT_NOTE = '⛔ এখন কিছু পাঠাবেন না (Dormant)। দিন ৩০-এর পর শুধু বাস্তব নতুন কারণ থাকলে /khobor বা /salam।';
+const NODATE_NOTE = '⛔ শেষ যোগাযোগের তারিখ নেই — আগে তারিখ দিন, তারপর মেসেজ।';
+const EXCLUDED_NOTE = '⛔ এই লিড "আগ্রহী না" (বাদ) — কোনো ফলো-আপ মেসেজ নয়।';
+const INACTIVE_NOTE = '⛔ ইনঅ্যাক্টিভ লিড — App নিজে মেসেজ দেবে না। বাস্তব নতুন কারণ থাকলে Quick Reply থেকে যোগাযোগ করুন।';
+const DUP_NOTE = '⛔ এই মেসেজটাই শেষবার পাঠানো হয়েছে — আবার পাঠাবেন না। chat পড়ে পরিস্থিতি দেখুন, প্রয়োজনে Claude-কে screenshot দিন।';
+const AMBIG_NOTE = '⛔ Notes-এ একাধিক পরিস্থিতি লেখা — App নিজে মেসেজ বাছবে না। chat পড়ে সিদ্ধান্ত নিন, প্রয়োজনে Claude-কে screenshot দিন।';
+
+/* F-3: রিঅর্ডার — শেষ অর্ডারের ৩০ দিন পার (ড্যাশবোর্ডের "রিঅর্ডারের সময়" কাউন্টারের হুবহু একই সূত্র) */
+function isReorderDue(el){
+  if((el.type||'লিড')!=='নিয়মিত কাস্টমার' || !el.lastOrder) return false;
+  const todayMs = new Date(todayISO()+'T00:00:00').getTime();
+  const due = new Date(el.lastOrder+'T00:00:00').getTime() + 30*24*60*60*1000;
+  return todayMs >= due;
 }
 function hasAny(text, keywords){ return keywords.some(k => text.includes(k)); }
+/* একই মেসেজ পরপর দুবার নয় */
+function noRepeat(el, text){
+  if(text.startsWith('⛔')) return text;
+  if((el.lastMessage||'').trim() === text.trim()) return DUP_NOTE;
+  return text;
+}
+
+const KW_ORDER   = ['কনফার্ম করেনি','কনফার্ম হয়নি','কনফার্ম করে নাই','কনফার্ম করলো না'];
+const KW_PRICE   = ['দামাদামি','দর কষাকষি','দরদাম','দাম বেশি'];
+const KW_VISIT   = ['আসার কথা','আসবে বলছে','আসবে বলেছে','আসছে বলছে','আসছে বলেছে','আসতে চেয়েছে','আসবো বলেছে'];
 
 function msgFor(el, rot){
   const notes = (el.notes || '').toLowerCase();
   const product = el.product || '';
+  const days = (el.days===undefined) ? null : el.days;
   rot = rot || 0;
 
-  /* ইনঅ্যাক্টিভ লিড → আলাদা হালকা যোগাযোগ মেসেজ (rotation সহ) */
-  if (isInactive(el)){
-    return fillProduct(INACTIVE_VARIANTS[rot % INACTIVE_VARIANTS.length], product);
-  }
+  /* বাদ করা লিড → কোনো মেসেজ নয় */
+  if (el.order==='আগ্রহী না') return EXCLUDED_NOTE;
 
-  if (el.action==='reorder:due' || (el.type==='নিয়মিত কাস্টমার' && el.action==='রিঅর্ডারের সময়'))
-    return 'আসসালামু আলাইকুম ভাই। গতবার যা নিয়েছিলেন সেগুলো এতদিনে অনেকটা বিক্রি হওয়ার কথা। নতুন স্টক এসেছে — ছবি পাঠাই, দেখে নিন?';
+  /* ইনঅ্যাক্টিভ লিড → কখনো automatic মেসেজ নয়; ৩০ দিন পার হওয়া নিজে কোনো কারণ নয় */
+  if (isInactive(el)) return INACTIVE_NOTE;
 
+  /* নিয়মিত কাস্টমার */
   if (el.type==='নিয়মিত কাস্টমার'){
+    if (isReorderDue(el)) return noRepeat(el, QR.order);           // F-3
+    if (el.action==='অপেক্ষা করো') return '⛔ এখন অপেক্ষা করুন — শেষ যোগাযোগের ১৪ দিন পার হয়নি।';
     if (el.action==='সরাসরি যোগাযোগ করো')
-      return 'আসসালামু আলাইকুম ভাই। অনেকদিন কথা হয়নি — সব ঠিকঠাক আছে তো? শোরুমে কেমন চলছে এখন?';
-    return 'আসসালামু আলাইকুম ভাই। নতুন কিছু স্টক এসেছে — ছবি পাঠাই একবার দেখে নিন।';
+      return noRepeat(el, 'আসসালামু আলাইকুম ভাই। অনেকদিন কথা হয়নি — সব ঠিকঠাক আছে তো? শোরুমে কেমন চলছে এখন?');
+    if (days===null) return NODATE_NOTE;
+    return noRepeat(el, QR.feedback);
   }
 
-  // ── ১. অর্ডার কনফার্ম হয়নি ──
-  if (notes.includes('অর্ডার') && hasAny(notes, ['কনফার্ম করেনি','কনফার্ম হয়নি','কনফার্ম করে নাই','কনফার্ম করলো না'])) {
+  /* ── F-1: ধাপ জানা না থাকলে শুধু পরামর্শ, কপি নয় ── */
+  const fu = fuNext(el);
+  if (fu.stage==='Unknown'){
+    return '⛔ ফলো-আপ ধাপ জানা নেই — App নিজে অনুমান করবে না। chat দেখে Edit-এ "ফলো-আপ ধাপ" ঠিক করুন।' +
+      (el.action && el.action!=='অপেক্ষা করো' ? ' (Last Contact অনুযায়ী পরামর্শ: ' + el.action + ')' : '');
+  }
+  if (fu.stage==='none') return '⛔ কার্ড এখনো পাঠানো হয়নি — ৩–৪টি কার্ড পাঠান, তারপর Edit-এ ধাপ "কার্ড/প্রথম মেসেজ পাঠানো" দিন।';
+  if (fu.next==='dormant') return DORMANT_NOTE;   // /khobor-এর বাস্তব কারণ App যাচাই করতে পারে না — তাই কখনো auto নয়
+  /* ── F-2 ধাপ ১: শিডিউলে সময় না হলে keyword থাকলেও মেসেজ নয় ── */
+  if (!fu.due) return '⛔ এখন অপেক্ষা করুন — পরের ধাপ (' + FU_LABEL[fu.next] + ') ' + toBn(fu.wait) + ' দিন পর।';
+
+  /* ── F-2 ধাপ ২: সময় হলে keyword দেখা; একাধিক পরিস্থিতি = অস্পষ্ট ── */
+  const kwOrder = notes.includes('অর্ডার') && hasAny(notes, KW_ORDER);
+  const kwPrice = hasAny(notes, KW_PRICE);
+  const kwVoice = notes.includes('ভয়েস মেসেজ');
+  const kwVisit = hasAny(notes, KW_VISIT);
+  const kwThanks = notes.includes('ধন্যবাদ দিয়েছে');
+  const hits = [kwOrder,kwPrice,kwVoice,kwVisit,kwThanks].filter(Boolean).length;
+  if (hits > 1) return AMBIG_NOTE;
+
+  let text;
+  if (kwOrder) {
     const KNOWN_PRODUCTS_OC = ['শার্ট','কাতুয়া','পাঞ্জাবি','পাঞ্জাবী','কাবলি','শার্টস'];
     const safeProduct = KNOWN_PRODUCTS_OC.includes((product||'').trim()) ? product.trim() : '';
-    return 'আসসালামু আলাইকুম ভাই। ' + (safeProduct ? safeProduct+' নিয়ে ' : '') + 'কথা হয়েছিল কিন্তু অর্ডারটা এখনো কনফার্ম হয়নি — আজই বুকিং দিতে চাইলে জানান, কুরিয়ারে পাঠিয়ে দিচ্ছি।';
+    text = 'আসসালামু আলাইকুম ভাই। ' + (safeProduct ? safeProduct+' নিয়ে ' : '') + 'কথা হয়েছিল কিন্তু অর্ডারটা এখনো কনফার্ম হয়নি — আজই বুকিং দিতে চাইলে জানান, কুরিয়ারে পাঠিয়ে দিচ্ছি।';
+  } else if (kwPrice) {
+    text = 'আসসালামু আলাইকুম ভাই, রেটটা শুধু কাপড়ের জন্য নয় — কাপড়, ফিনিশিং, প্যাকিং এবং ধারাবাহিক কোয়ালিটি মিলিয়ে হিসাব করা। আমরা চেষ্টা করি এমন রেট রাখতে যাতে আপনার বিক্রির পরও ভালো মার্জিন থাকে। প্রথমবার চাইলে ১২ পিসের টেস্ট অর্ডার দিয়ে কোয়ালিটি ও বাজারের সাড়া যাচাই করে দেখতে পারেন।';
+  } else if (kwVoice) {
+    text = 'আসসালামু আলাইকুম ভাই, আগে একটা ভয়েস মেসেজ পাঠিয়েছিলাম, হয়তো শোনা হয়নি। ডিজাইন বা অর্ডার নিয়ে কিছু জানার থাকলে লিখে জানাবেন।';
+  } else if (kwVisit) {
+    text = QR.ashbe;
+  } else if (kwThanks) {
+    text = QR.chobi2;
+  } else {
+    text = QR[fu.next];
   }
-
-  // ── ২. দামাদামি / দর কষাকষি ──
-  if (hasAny(notes, ['দামাদামি','দর কষাকষি','দরদাম','দাম বেশি'])) {
-    return 'ভাই, রেটটা শুধু কাপড়ের জন্য নয় — কাপড়, ফিনিশিং, প্যাকিং এবং ধারাবাহিক কোয়ালিটি মিলিয়ে হিসাব করা। আমরা চেষ্টা করি এমন রেট রাখতে যাতে আপনার বিক্রির পরও ভালো মার্জিন থাকে। চাইলে অল্প পরিমাণে শুরু করে কোয়ালিটি ও বাজারের সাড়া যাচাই করে দেখতে পারেন।';
+  /* ── F-2 ধাপ ৩: পুরোনো Notes-এর keyword একবারই — শেষবার একই মেসেজ গেলে শিডিউলে ফেরা ── */
+  if (!text.startsWith('⛔') && (el.lastMessage||'').trim()===text.trim() && hits===1){
+    return noRepeat(el, QR[fu.next]);
   }
-
-  // ── ৩. ভয়েস মেসেজ শোনা হয়নি ──
-  if (notes.includes('ভয়েস মেসেজ')) {
-    return 'ভাই, আগে একটা ভয়েস মেসেজ পাঠিয়েছিলাম, হয়তো শোনা হয়নি। সংক্ষেপে লিখে দিচ্ছি — ' + fillProduct('{PRODUCT}', product) + ' নিয়ে আগ্রহ ছিল, এখনো লাগলে জানাবেন।';
-  }
-
-  // ── ৪. আসার কথা/প্রতিশ্রুতি ──
-  if (hasAny(notes, ['আসার কথা','আসবে বলছে','আসবে বলেছে','আসছে বলছে','আসছে বলেছে','আসতে চেয়েছে','আসবো বলেছে'])) {
-    return 'আসসালামু আলাইকুম ভাই। আসার কথা বলেছিলেন — সময় সুবিধামতো হলে জানাবেন, অথবা এখন কিছু কালেকশন ছবি পাঠাই, আগে থেকে দেখে নিতে পারেন?';
-  }
-
-  // ── ৫. ছবি পাঠানোর পর ধন্যবাদ ──
-  if (notes.includes('ধন্যবাদ দিয়েছে')) {
-    return 'ভাই, ছবিগুলো কেমন লাগলো? পছন্দ হলে জানাবেন — পাইকারি রেট আর প্যাকিং বিস্তারিত এখনই পাঠিয়ে দিচ্ছি।';
-  }
-
-  // ── ৬. সাইলেন্ট/রেসপন্স নেই (rotation সহ) ──
-  if (hasAny(notes, ['সিন করে না','রেসপন্স নেই','রেসপন্স করে না','নিষ্ক্রিয়','রেসপন্স করেনি','সিনই করেনি','সিন ই করেনি'])) {
-    return fillProduct(SILENT_VARIANTS[rot % SILENT_VARIANTS.length], product);
-  }
-
-  if (el.action==='কল করো')
-    return 'আসসালামু আলাইকুম ভাই। আপনাকে একটু কল করতে চাইছিলাম, নতুন কিছু দেখানোর আছে — এখন কি সময় হবে?';
-
-  // ── ৭. ফলব্যাক (rotation সহ) ──
-  return REACT_VARIANTS[rot % REACT_VARIANTS.length];
+  return noRepeat(el, text);
 }
 
 function toast(msg){
@@ -1118,7 +1188,7 @@ function enrich(l){
     }
     return {...l,type,days:d,activeState:'ইনঅ্যাক্টিভ',status:{label:'ইনঅ্যাক্টিভ',cls:'bg-slate'},action:'পরে কাজ — ১ মাস পর মেসেজ'};
   }
-  return {...l,type,days:d,activeState:l.activeState||'অ্যাক্টিভ',status:statusFor(d,type),action:actionFor(d,type)};
+  return {...l,type,days:d,activeState:l.activeState||'অ্যাক্টিভ',status:statusFor(d,type),action:actionFor(d,type,l)};
 }
 
 function render(){
@@ -1139,7 +1209,7 @@ function render(){
       if(l.priceQuoted==='না'&&l.order!=='আলোচনা চলছে'&&l.order!=='কনভার্ট হয়েছে'&&l.order!=='আগ্রহী না') counts.c3++;
       if(l.action==='পুনঃসক্রিয়করণ ক্যাম্পেইনে যোগ করো') counts.c4++;
     } else {
-      if(l.action==='খোঁজ নিন / নতুন স্টক জানান') counts.c5++;
+      if(l.action==='খোঁজ নিন (/feedback)') counts.c5++;
       if(l.action==='সরাসরি যোগাযোগ করো') counts.c6++;
     }
   });
@@ -1195,7 +1265,7 @@ function render(){
   } else if(activeFilter==='a:পুনঃসক্রিয়'){
     working=working.filter(l=>l.action==='পুনঃসক্রিয়করণ ক্যাম্পেইনে যোগ করো');
   } else if(activeFilter==='a:খোঁজ নিন'){
-    working=working.filter(l=>l.action==='খোঁজ নিন / নতুন স্টক জানান');
+    working=working.filter(l=>l.action==='খোঁজ নিন (/feedback)');
   } else if(activeFilter==='a:সরাসরি যোগাযোগ'){
     working=working.filter(l=>l.action==='সরাসরি যোগাযোগ করো');
   } else if(activeFilter==='inact:all'){
@@ -1327,6 +1397,7 @@ function openDetail(id){
   document.getElementById('d_order').textContent=l.order||'—';
   document.getElementById('d_first').textContent=formatDate(l.first);
   document.getElementById('d_last').textContent=formatDate(l.last);
+  document.getElementById('d_fustage').textContent=(FU_LABEL[fuStageOf(l)]||'—')+(l.fuStageDate?' · '+formatDate(l.fuStageDate):'');
 
   // ইনঅ্যাক্টিভ/অ্যাক্টিভ টগল বোতাম দেখানো
   const inactBtn=document.getElementById('d_inactBtn');
@@ -1361,9 +1432,15 @@ document.getElementById('d_copyMsgBtn').addEventListener('click',async()=>{
   const el=enrich(l);
   const rot=l._msgRot||0;
   const text=msgFor(el,rot);
+  if(text.startsWith('⛔')){ toast(text); return; }
   copyText(text,'📝 মেসেজ কপি হয়েছে');
   l._msgRot=rot+1;
   l.lastMessage=text;
+  /* F-1: লিডের নির্ধারিত ধাপের মেসেজ গেলে ধাপ এগোয় (Last Contact ছোঁয় না) */
+  if((l.type||'লিড')!=='নিয়মিত কাস্টমার' && !isInactive(l) && l.order!=='আগ্রহী না'){
+    const n=fuNext(l);
+    if(n.due && n.next && n.next!=='dormant' && text===QR[n.next]){ l.fuStage=n.next; l.fuStageDate=todayISO(); }
+  }
   await saveLeads();
   syncLead(l,{silent:true});
 });
@@ -1375,6 +1452,14 @@ document.getElementById('d_todayBtn').addEventListener('click',async()=>{
   const raw=leads.find(x=>x.id===detailId);
   if(raw) openDetail(detailId);
   toast('✓ আজকের তারিখ সেভ হয়েছে');
+});
+/* F-1: buyer উত্তর দিলে ফলো-আপ নতুন করে শুরু (Last Contact ছোঁয় না — সেটা ✓ বাটনের কাজ) */
+document.getElementById('d_replyBtn').addEventListener('click',async()=>{
+  const l=leads.find(x=>x.id===detailId); if(!l) return;
+  l.fuStage='card'; l.fuStageDate=todayISO();
+  await saveLeads(); render();
+  if(leads.find(x=>x.id===detailId)) openDetail(detailId);
+  toast('↩ ফলো-আপ নতুন করে শুরু — ২ দিন পর /chobi');
 });
 /* ইনঅ্যাক্টিভ করার বোতাম */
 document.getElementById('d_inactBtn').addEventListener('click',async()=>{
@@ -1446,6 +1531,7 @@ function openAdd(){
   document.getElementById('f_last').value=todayISO();
   document.getElementById('f_price').value='না';
   document.getElementById('f_order').value='অর্ডার হয়নি';
+  document.getElementById('f_fustage').value='none';
   document.getElementById('formOverlay').classList.add('show');
   setTimeout(()=>document.getElementById('f_name').focus(),300);
 }
@@ -1471,6 +1557,7 @@ function openEdit(id){
   document.getElementById('f_notes').value=l.notes||'';
   document.getElementById('f_lastorder').value=l.lastOrder||'';
   document.getElementById('f_lastmsg').value='';
+  document.getElementById('f_fustage').value=fuStageOf(l);
   document.getElementById('formOverlay').classList.add('show');
 }
 
@@ -1503,6 +1590,14 @@ async function saveForm(){
     notes:document.getElementById('f_notes').value.trim(),
     lastOrder:document.getElementById('f_lastorder').value
   };
+  /* F-1: ধাপ হাতে বদলালে শুধু তখনই fuStage/fuStageDate লেখা হয় */
+  const pickedStage=document.getElementById('f_fustage').value;
+  const prevLead=id?leads.find(x=>x.id===id):null;
+  const prevStage=prevLead?fuStageOf(prevLead):null;
+  if(!prevLead || pickedStage!==prevStage){
+    if(pickedStage==='Unknown'){ data.fuStage=undefined; data.fuStageDate=undefined; }
+    else { data.fuStage=pickedStage; data.fuStageDate=todayISO(); }
+  }
   const customMsg=document.getElementById('f_lastmsg').value.trim();
   if(customMsg) data.lastMessage=customMsg;
   let savedLead;
