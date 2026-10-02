@@ -306,6 +306,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
   z-index:99;box-shadow:0 6px 16px rgba(0,0,0,.25);
   opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap;
 }
+#toast.long{white-space:normal;width:max-content;max-width:calc(100vw - 32px);border-radius:14px;line-height:1.5;text-align:center;}
 
 .footnote{text-align:center;padding:12px 24px 4px;font-size:11px;color:var(--muted);}
 .spacer{height:90px;}
@@ -621,6 +622,8 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
       <div class="detail-row"><span class="dk">অর্ডার</span><span class="dv" id="d_order">—</span></div>
       <div class="detail-row"><span class="dk">প্রথম যোগাযোগ</span><span class="dv" id="d_first">—</span></div>
       <div class="detail-row"><span class="dk">শেষ যোগাযোগ</span><span class="dv" id="d_last">—</span></div>
+      <div class="detail-row" id="d_lastOrderRow"><span class="dk">শেষ অর্ডার</span><span class="dv" id="d_lastOrder">—</span></div>
+      <div class="detail-row"><span class="dk">শেষ পাঠানো মেসেজ</span><span class="dv" id="d_lastMsg" style="white-space:normal;font-weight:400;">—</span></div>
     </div>
 
     <div class="detail-section" id="d_notesSection" style="display:none;">
@@ -753,6 +756,8 @@ function actionFor(days, type, l){
     if (n.next==='chobi3') return 'শেষ ফলো-আপ মেসেজ পাঠাও';
     return 'Soft follow-up মেসেজ পাঠাও';
   }
+  /* রিঅর্ডারের সময় হলে উপরের লেখা আর কপি হওয়া মেসেজ একই কথা বলবে */
+  if(type==='নিয়মিত কাস্টমার' && l && isReorderDue(l)) return 'রিঅর্ডারের মেসেজ পাঠাও';
   if(days===null) return 'শেষ যোগাযোগের তারিখ দিন';
   if(type==='নিয়মিত কাস্টমার'){
     if(days<=14) return 'অপেক্ষা করো';
@@ -791,12 +796,17 @@ const INACTIVE_NOTE = '⛔ ইনঅ্যাক্টিভ লিড — App �
 const DUP_NOTE = '⛔ এই মেসেজটাই শেষবার পাঠানো হয়েছে — আবার পাঠাবেন না। chat পড়ে পরিস্থিতি দেখুন, প্রয়োজনে Claude-কে screenshot দিন।';
 const AMBIG_NOTE = '⛔ Notes-এ একাধিক পরিস্থিতি লেখা — App নিজে মেসেজ বাছবে না। chat পড়ে সিদ্ধান্ত নিন, প্রয়োজনে Claude-কে screenshot দিন।';
 
-/* F-3: রিঅর্ডার — শেষ অর্ডারের ৩০ দিন পার (ড্যাশবোর্ডের "রিঅর্ডারের সময়" কাউন্টারের হুবহু একই সূত্র) */
+/* F-3: রিঅর্ডার — শেষ অর্ডারের ৩০ দিন পার, এবং শেষ যোগাযোগের ১৪ দিন পার
+   (সদ্য যোগাযোগ হয়ে থাকলে একই কাস্টমারকে আবার রিঅর্ডার মেসেজ নয়)।
+   ড্যাশবোর্ড কাউন্টার, ফিল্টার আর "পরবর্তী অ্যাকশন" — সবাই এই একটা ফাংশনই ব্যবহার করে। */
+const REORDER_DAYS = 30, REORDER_QUIET_DAYS = 14;
 function isReorderDue(el){
   if((el.type||'লিড')!=='নিয়মিত কাস্টমার' || !el.lastOrder) return false;
-  const todayMs = new Date(todayISO()+'T00:00:00').getTime();
-  const due = new Date(el.lastOrder+'T00:00:00').getTime() + 30*24*60*60*1000;
-  return todayMs >= due;
+  if(isInactive(el) || el.order==='আগ্রহী না') return false;   // App এদের কোনো মেসেজ দেয় না, তাই গোনাও হবে না
+  const sinceOrder = daysSince(el.lastOrder);
+  if(sinceOrder===null || sinceOrder < REORDER_DAYS) return false;
+  const sinceContact = daysSince(el.last);
+  return sinceContact===null || sinceContact > REORDER_QUIET_DAYS;
 }
 function hasAny(text, keywords){ return keywords.some(k => text.includes(k)); }
 /* একই মেসেজ পরপর দুবার নয় */
@@ -872,11 +882,16 @@ function msgFor(el, rot){
   return noRepeat(el, text);
 }
 
+/* দেখানোর লেখা — ভেতরের হিসাবের লেখা বদলায় না (কাউন্টার/ফিল্টার আগের মতো) */
+const ACTION_DISPLAY = {'Soft follow-up মেসেজ পাঠাও':'ফলো-আপ মেসেজ পাঠাও'};
+const actionText = a => ACTION_DISPLAY[a] || a;
+
 function toast(msg){
   const t=document.getElementById('toast');
-  t.textContent=msg; t.style.opacity='1';
+  const long=String(msg).length>40;              // ⛔ নির্দেশনা লম্বা — কয়েক লাইনে, বেশি সময় দেখাবে
+  t.textContent=msg; t.classList.toggle('long',long); t.style.opacity='1';
   clearTimeout(t._t);
-  t._t=setTimeout(()=>t.style.opacity='0',2000);
+  t._t=setTimeout(()=>t.style.opacity='0',long?7000:2000);
 }
 
 function copyText(text, msg){
@@ -1231,14 +1246,7 @@ function render(){
   document.getElementById('sc9').textContent=toBn(counts.c9);
   document.getElementById('sc10').textContent=toBn(counts.c10);
   // রিঅর্ডার counter
-  const todayMs = new Date(todayISO()+'T00:00:00').getTime();
-  let reorderCount = 0;
-  leads.forEach(l=>{
-    if((l.type||'লিড')==='নিয়মিত কাস্টমার' && l.lastOrder){
-      const due = new Date(l.lastOrder+'T00:00:00').getTime() + 30*24*60*60*1000;
-      if(todayMs >= due) reorderCount++;
-    }
-  });
+  const reorderCount = leads.filter(isReorderDue).length;
   document.getElementById('sc7').textContent=toBn(reorderCount);
 
   const lc=leads.filter(l=>(l.type||'লিড')==='লিড').length;
@@ -1284,12 +1292,7 @@ function render(){
   } else if(activeFilter==='inact:due'){
     working=working.filter(l=>l.activeState==='ইনঅ্যাক্টিভ'&&l.order!=='আগ্রহী না'&&l.days!==null&&l.days>=INACTIVE_DAYS);
   } else if(activeFilter==='reorder:due'){
-    const todayMs2 = new Date(todayISO()+'T00:00:00').getTime();
-    working=working.filter(l=>{
-      if((l.type||'লিড')!=='নিয়মিত কাস্টমার' || !l.lastOrder) return false;
-      const due = new Date(l.lastOrder+'T00:00:00').getTime() + 30*24*60*60*1000;
-      return todayMs2 >= due;
-    });
+    working=working.filter(isReorderDue);
   }
 
   // search
@@ -1351,7 +1354,7 @@ function render(){
         <div>শেষ যোগাযোগ: <b>${dl}</b></div>
         <div>অর্ডার: <b>${esc(l.order)||'—'}</b></div>
       </div>
-      <div class="lcard-action"><span class="lbl">পরবর্তী:</span>${l.action}</div>
+      <div class="lcard-action"><span class="lbl">পরবর্তী:</span>${esc(actionText(l.action))}</div>
       <div class="quick-btns" onclick="event.stopPropagation()">
         <a class="qbtn qbtn-call" href="tel:${ph}">📞 কল</a>
         <a class="qbtn qbtn-wa" href="https://wa.me/${ph}" target="_blank" rel="noopener">💬 WhatsApp</a>
@@ -1387,7 +1390,7 @@ function openDetail(id){
 
   document.getElementById('d_name').textContent=l.name||'নাম নেই';
   document.getElementById('d_phone').textContent=l.phone||'—';
-  document.getElementById('d_action').textContent=l.action;
+  document.getElementById('d_action').textContent=actionText(l.action);
 
   const badge=document.getElementById('d_badge');
   badge.className='badge '+l.status.cls;
@@ -1408,7 +1411,13 @@ function openDetail(id){
   document.getElementById('d_order').textContent=l.order||'—';
   document.getElementById('d_first').textContent=formatDate(l.first);
   document.getElementById('d_last').textContent=formatDate(l.last);
-  document.getElementById('d_fustage').textContent=(FU_LABEL[fuStageOf(l)]||'—')+(l.fuStageDate?' · '+formatDate(l.fuStageDate):'');
+  const isCustD=l.type==='নিয়মিত কাস্টমার';
+  document.getElementById('d_fustage').textContent=isCustD
+    ? 'প্রযোজ্য নয় (নিয়মিত কাস্টমার)'
+    : (FU_LABEL[fuStageOf(l)]||'—')+(l.fuStageDate?' · '+formatDate(l.fuStageDate):'');
+  document.getElementById('d_lastOrder').textContent=l.lastOrder?formatDate(l.lastOrder):(isCustD?'দেওয়া নেই — এডিটে তারিখ দিন':'—');
+  const lm=(l.lastMessage||'').trim();
+  document.getElementById('d_lastMsg').textContent=lm?(lm.length>70?lm.slice(0,70)+'…':lm):'—';
 
   // ইনঅ্যাক্টিভ/অ্যাক্টিভ টগল বোতাম দেখানো
   const inactBtn=document.getElementById('d_inactBtn');
@@ -1464,13 +1473,25 @@ document.getElementById('d_todayBtn').addEventListener('click',async()=>{
   if(raw) openDetail(detailId);
   toast('✓ আজকের তারিখ সেভ হয়েছে');
 });
-/* F-1: buyer উত্তর দিলে ফলো-আপ নতুন করে শুরু (Last Contact ছোঁয় না — সেটা ✓ বাটনের কাজ) */
+/* buyer উত্তর দিয়েছে = আজ যোগাযোগ হয়েছে (Last Contact আজ)।
+   লিড হলে ফলো-আপ ধাপও নতুন করে শুরু; নিয়মিত কাস্টমারের ধাপ নেই, তাই শুধু তারিখ।
+   ইনঅ্যাক্টিভ কেউ উত্তর দিলে সে আবার অ্যাক্টিভ — কাজের তালিকায় ফেরে।
+   "আগ্রহী না" স্ট্যাটাস App নিজে বদলায় না — সেটা এডিটে আপনার সিদ্ধান্ত। */
 document.getElementById('d_replyBtn').addEventListener('click',async()=>{
   const l=leads.find(x=>x.id===detailId); if(!l) return;
-  l.fuStage='card'; l.fuStageDate=todayISO();
+  const isCust=(l.type||'লিড')==='নিয়মিত কাস্টমার';
+  const wasInactive=isInactive(l);
+  l.last=todayISO();
+  if(wasInactive) l.activeState='অ্যাক্টিভ';
+  if(!isCust){ l.fuStage='card'; l.fuStageDate=todayISO(); }
   await saveLeads(); render();
+  syncLead(l,{silent:true});
   if(leads.find(x=>x.id===detailId)) openDetail(detailId);
-  toast('↩ ফলো-আপ নতুন করে শুরু — ২ দিন পর /chobi');
+  let msg = isCust ? '↩ উত্তর সেভ হয়েছে — আজকের তারিখ বসেছে'
+                   : '↩ উত্তর সেভ হয়েছে — ফলো-আপ নতুন করে শুরু, ২ দিন পর ১ম ফলো-আপ';
+  if(wasInactive) msg += '। আবার অ্যাক্টিভ করা হলো';
+  if(l.order==='আগ্রহী না') msg += '। স্ট্যাটাস এখনো "আগ্রহী না" — আগ্রহ থাকলে এডিটে বদলান';
+  toast(msg);
 });
 /* ইনঅ্যাক্টিভ করার বোতাম */
 document.getElementById('d_inactBtn').addEventListener('click',async()=>{
@@ -1724,7 +1745,7 @@ document.getElementById('pinOverlay').addEventListener('click',e=>{if(e.target.i
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
-      .register('./service-worker.js')
+      .register('./sw.js')   // অফলাইনে খোলার জন্য (আগে ভুল নামে ছিল — ফাইলটা নেই)
       .catch(() => {});
   });
 }
