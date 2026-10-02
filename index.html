@@ -119,6 +119,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
 .s-call .num{color:#1E2A3A;} .s-call.active-filter{border-color:#1E2A3A;}
 .s-msg .num{color:var(--blue);} .s-msg.active-filter{border-color:var(--blue);}
 .s-prod .num{color:#9C5B0E;} .s-prod.active-filter{border-color:#9C5B0E;}
+.s-stage{grid-column:1/-1;} .s-stage .num{color:#546E7A;} .s-stage.active-filter{border-color:#546E7A;}
 .s-react .num{color:var(--crimson);} .s-react.active-filter{border-color:var(--crimson);}
 .s-check .num{color:var(--yellow);} .s-check.active-filter{border-color:var(--yellow);}
 .s-cold .num{color:var(--orange);} .s-cold.active-filter{border-color:var(--orange);}
@@ -378,6 +379,9 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
       </div>
       <div class="stat s-react" onclick="setFilter('a:পুনঃসক্রিয়','🔄 পুনঃসক্রিয় করো')">
         <div class="num" id="sc4">০</div><div class="lab">🔄 পুনঃসক্রিয় করো</div>
+      </div>
+      <div class="stat s-stage" onclick="setFilter('a:ধাপ','🧭 ধাপ ঠিক করুন')">
+        <div class="num" id="sc10">০</div><div class="lab">🧭 ধাপ ঠিক করুন (ফলো-আপ ধাপ জানা নেই)</div>
       </div>
     </div>
     <div class="dash-title" style="margin-top:16px;">ইনঅ্যাক্টিভ — পরে কাজ (১ মাস+)</div>
@@ -738,6 +742,7 @@ function statusFor(days, type){
 
 /* লিড ফলো-আপ: দিন ০ কার্ড → ২ /chobi → ৪–৫ কল (+/phone) → ৭–৮ /chobi2 → ১২–১৪ /chobi3 → ১৫+ Dormant → ৩০+ /khobor বা /salam */
 function actionFor(days, type, l){
+  if(type!=='নিয়মিত কাস্টমার' && l && fuStageOf(l)==='Unknown') return 'ধাপ ঠিক করুন';
   if(type!=='নিয়মিত কাস্টমার' && l && fuStageOf(l)!=='Unknown'){
     const n = fuNext(l);
     if (n.stage==='none') return 'কার্ড পাঠাও';
@@ -827,8 +832,7 @@ function msgFor(el, rot){
   /* ── F-1: ধাপ জানা না থাকলে শুধু পরামর্শ, কপি নয় ── */
   const fu = fuNext(el);
   if (fu.stage==='Unknown'){
-    return '⛔ ফলো-আপ ধাপ জানা নেই — App নিজে অনুমান করবে না। chat দেখে Edit-এ "ফলো-আপ ধাপ" ঠিক করুন।' +
-      (el.action && el.action!=='অপেক্ষা করো' ? ' (Last Contact অনুযায়ী পরামর্শ: ' + el.action + ')' : '');
+    return '⛔ ফলো-আপ ধাপ জানা নেই — App নিজে মেসেজ দেবে না। ডকের তালিকায় থাকলে ফোন করুন; কথা হলে ↩ চাপুন, না ধরলে /phone পাঠিয়ে Edit-এ ধাপ বসান।';
   }
   if (fu.stage==='none') return '⛔ কার্ড এখনো পাঠানো হয়নি — ৩–৪টি কার্ড পাঠান, তারপর Edit-এ ধাপ "কার্ড/প্রথম মেসেজ পাঠানো" দিন।';
   if (fu.next==='dormant') return DORMANT_NOTE;   // /khobor-এর বাস্তব কারণ App যাচাই করতে পারে না — তাই কখনো auto নয়
@@ -1188,14 +1192,16 @@ function enrich(l){
     }
     return {...l,type,days:d,activeState:'ইনঅ্যাক্টিভ',status:{label:'ইনঅ্যাক্টিভ',cls:'bg-slate'},action:'পরে কাজ — ১ মাস পর মেসেজ'};
   }
-  return {...l,type,days:d,activeState:l.activeState||'অ্যাক্টিভ',status:statusFor(d,type),action:actionFor(d,type,l)};
+  const act=actionFor(d,type,l);
+  if(act==='ধাপ ঠিক করুন') return {...l,type,days:d,activeState:l.activeState||'অ্যাক্টিভ',status:{label:'ধাপ জানা নেই',cls:'bg-slate'},action:act};
+  return {...l,type,days:d,activeState:l.activeState||'অ্যাক্টিভ',status:statusFor(d,type),action:act};
 }
 
 function render(){
   setTodayLabel();
 
   const all=leads.map(enrich);
-  let counts={c1:0,c2:0,c3:0,c4:0,c5:0,c6:0,c8:0,c9:0};
+  let counts={c1:0,c2:0,c3:0,c4:0,c5:0,c6:0,c8:0,c9:0,c10:0};
   all.forEach(l=>{
     // ইনঅ্যাক্টিভ লিড: আলাদা কাউন্টার, রোজকার কাজে গোনা হবে না
     if(l.activeState==='ইনঅ্যাক্টিভ' && l.order!=='আগ্রহী না'){
@@ -1208,6 +1214,7 @@ function render(){
       if(l.action==='Soft follow-up মেসেজ পাঠাও'||l.action==='শেষ ফলো-আপ মেসেজ পাঠাও') counts.c2++;
       if(l.priceQuoted==='না'&&l.order!=='আলোচনা চলছে'&&l.order!=='কনভার্ট হয়েছে'&&l.order!=='আগ্রহী না') counts.c3++;
       if(l.action==='পুনঃসক্রিয়করণ ক্যাম্পেইনে যোগ করো') counts.c4++;
+      if(l.action==='ধাপ ঠিক করুন') counts.c10++;
     } else {
       if(l.action==='খোঁজ নিন (/feedback)') counts.c5++;
       if(l.action==='সরাসরি যোগাযোগ করো') counts.c6++;
@@ -1221,6 +1228,7 @@ function render(){
   document.getElementById('sc6').textContent=toBn(counts.c6);
   document.getElementById('sc8').textContent=toBn(counts.c8);
   document.getElementById('sc9').textContent=toBn(counts.c9);
+  document.getElementById('sc10').textContent=toBn(counts.c10);
   // রিঅর্ডার counter
   const todayMs = new Date(todayISO()+'T00:00:00').getTime();
   let reorderCount = 0;
@@ -1264,6 +1272,8 @@ function render(){
     working=working.filter(l=>l.priceQuoted==='না'&&l.order!=='আলোচনা চলছে'&&l.order!=='কনভার্ট হয়েছে'&&l.order!=='আগ্রহী না'&&l.activeState!=='ইনঅ্যাক্টিভ');
   } else if(activeFilter==='a:পুনঃসক্রিয়'){
     working=working.filter(l=>l.action==='পুনঃসক্রিয়করণ ক্যাম্পেইনে যোগ করো');
+  } else if(activeFilter==='a:ধাপ'){
+    working=working.filter(l=>l.action==='ধাপ ঠিক করুন');
   } else if(activeFilter==='a:খোঁজ নিন'){
     working=working.filter(l=>l.action==='খোঁজ নিন (/feedback)');
   } else if(activeFilter==='a:সরাসরি যোগাযোগ'){
