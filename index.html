@@ -842,10 +842,9 @@ function msgFor(el, rot){
   /* ── F-2 ধাপ ২: সময় হলে keyword দেখা; একাধিক পরিস্থিতি = অস্পষ্ট ── */
   const kwOrder = notes.includes('অর্ডার') && hasAny(notes, KW_ORDER);
   const kwPrice = hasAny(notes, KW_PRICE);
-  const kwVoice = notes.includes('ভয়েস মেসেজ');
   const kwVisit = hasAny(notes, KW_VISIT);
   const kwThanks = notes.includes('ধন্যবাদ দিয়েছে');
-  const hits = [kwOrder,kwPrice,kwVoice,kwVisit,kwThanks].filter(Boolean).length;
+  const hits = [kwOrder,kwPrice,kwVisit,kwThanks].filter(Boolean).length;
   if (hits > 1) return AMBIG_NOTE;
 
   let text;
@@ -855,8 +854,7 @@ function msgFor(el, rot){
     text = 'আসসালামু আলাইকুম ভাই। ' + (safeProduct ? safeProduct+' নিয়ে ' : '') + 'কথা হয়েছিল কিন্তু অর্ডারটা এখনো কনফার্ম হয়নি — আজই বুকিং দিতে চাইলে জানান, কুরিয়ারে পাঠিয়ে দিচ্ছি।';
   } else if (kwPrice) {
     text = 'আসসালামু আলাইকুম ভাই, রেটটা শুধু কাপড়ের জন্য নয় — কাপড়, ফিনিশিং, প্যাকিং এবং ধারাবাহিক কোয়ালিটি মিলিয়ে হিসাব করা। আমরা চেষ্টা করি এমন রেট রাখতে যাতে আপনার বিক্রির পরও ভালো মার্জিন থাকে। প্রথমবার চাইলে ১২ পিসের টেস্ট অর্ডার দিয়ে কোয়ালিটি ও বাজারের সাড়া যাচাই করে দেখতে পারেন।';
-  } else if (kwVoice) {
-    text = 'আসসালামু আলাইকুম ভাই, আগে একটা ভয়েস মেসেজ পাঠিয়েছিলাম, হয়তো শোনা হয়নি। ডিজাইন বা অর্ডার নিয়ে কিছু জানার থাকলে লিখে জানাবেন।';
+  /* ভয়েস-মেসেজ keyword বাদ: Notes-এ কে ভয়েস পাঠিয়েছে (আমরা না buyer) App বুঝতে পারে না — তাই নির্ধারিত মেসেজই দেখায় */
   } else if (kwVisit) {
     text = QR.ashbe;
   } else if (kwThanks) {
