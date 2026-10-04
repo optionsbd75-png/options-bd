@@ -119,6 +119,8 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
 .s-call .num{color:#1E2A3A;} .s-call.active-filter{border-color:#1E2A3A;}
 .s-msg .num{color:var(--blue);} .s-msg.active-filter{border-color:var(--blue);}
 .s-prod .num{color:#9C5B0E;} .s-prod.active-filter{border-color:#9C5B0E;}
+.s-nurture .num{color:#2E7D32;} .s-nurture.active-filter{border-color:#2E7D32;}
+.s-suggest .num{color:#546E7A;} .s-suggest.active-filter{border-color:#546E7A;}
 .s-stage{grid-column:1/-1;} .s-stage .num{color:#546E7A;} .s-stage.active-filter{border-color:#546E7A;}
 .s-react .num{color:var(--crimson);} .s-react.active-filter{border-color:var(--crimson);}
 .s-check .num{color:var(--yellow);} .s-check.active-filter{border-color:var(--yellow);}
@@ -188,6 +190,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
 .bg-gray{background:#e5e7eb;color:#6b7280;}
 .bg-slate{background:#ECEFF1;color:#546E7A;}
 .bg-teal{background:#E0F2F1;color:#00838F;}
+.bg-dormant{background:#EDE7F6;color:#5E35B1;}
 .lcard-meta{display:flex;flex-wrap:wrap;gap:5px 14px;margin-top:9px;font-size:12px;color:var(--muted);}
 .lcard-meta b{color:var(--ink);font-weight:600;}
 .lcard-action{
@@ -381,6 +384,12 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
       <div class="stat s-react" onclick="setFilter('a:পুনঃসক্রিয়','🔄 পুনঃসক্রিয় করো')">
         <div class="num" id="sc4">০</div><div class="lab">🔄 পুনঃসক্রিয় করো</div>
       </div>
+      <div class="stat s-nurture" onclick="setFilter('a:নার্চার','🌱 নার্চার মেসেজ')">
+        <div class="num" id="sc11">০</div><div class="lab">🌱 নার্চার মেসেজ (Dormant, মাসে একবার)</div>
+      </div>
+      <div class="stat s-suggest" onclick="setFilter('a:ইনঅ্যাক্টিভ-পরামর্শ','🔵 ইনঅ্যাক্টিভ করার পরামর্শ')">
+        <div class="num" id="sc12">০</div><div class="lab">🔵 ৩ নার্চারেও সাড়া নেই — ইনঅ্যাক্টিভ করুন?</div>
+      </div>
       <div class="stat s-stage" onclick="setFilter('a:ধাপ','🧭 ধাপ ঠিক করুন')">
         <div class="num" id="sc10">০</div><div class="lab">🧭 ধাপ ঠিক করুন (ফলো-আপ ধাপ জানা নেই)</div>
       </div>
@@ -422,6 +431,10 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
     <button class="btn-bk" id="importBtn">⬆ ফেরত আনো</button>
     <input type="file" id="importFile" accept="application/json" style="display:none;">
   </div>
+  <div class="backup-row" style="padding-top:8px;">
+    <button class="btn-bk" id="sheetRestoreBtn">☁️ Sheet থেকে সব ফেরত আনো <span style="font-weight:400;color:var(--muted);">(নতুন ফোন / ডেটা মুছে গেলে)</span></button>
+  </div>
+  <div class="backup-hint" id="stateHint" style="display:none;"></div>
   <div class="backup-hint" id="backupHint">শেষ ব্যাকআপ: —</div>
 
   <div class="search-wrap">
@@ -544,7 +557,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
           <option value="phone">ফোন করা হয়েছে</option>
           <option value="chobi2">২য় ফলো-আপ মেসেজ পাঠানো হয়েছে</option>
           <option value="chobi3">শেষ ফলো-আপ মেসেজ পাঠানো হয়েছে</option>
-          <option value="dormant">Dormant — আর কিছু পাঠানো হবে না</option>
+          <option value="dormant">Dormant — ফলো-আপ শেষ (এখন শুধু মাসিক নার্চার)</option>
           <option value="Unknown">জানা নেই (App কিছু দেখাবে না)</option>
         </select>
       </div>
@@ -597,6 +610,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
     <div class="detail-action-box">
       <div class="da-lbl">পরবর্তী অ্যাকশন</div>
       <div class="da-text" id="d_action">—</div>
+      <div id="d_pending" style="display:none;margin-top:6px;font-size:12.5px;font-weight:600;color:#FDBA74;"></div>
     </div>
 
     <div class="detail-btns">
@@ -711,11 +725,11 @@ function normalizePhone(p){
   return n;
 }
 
-/* ═══ F-1: ফলো-আপ ধাপ (fuStage / fuStageDate) — শুধু ফোনের localStorage-এ, Sheet-এ যায় না ═══ */
+/* ═══ F-1: ফলো-আপ ধাপ (fuStage / fuStageDate) — ফোনে; ✓/এডিটের পর Sheet-এর AppState ট্যাবেও (Sheet1-এ নয়) ═══ */
 const FU_ORDER = ['card','chobi','phone','chobi2','chobi3'];
 const FU_GAP   = {card:2, chobi:2, phone:3, chobi2:5};          // এই ধাপের পর কত দিন অপেক্ষা
 const FU_NEXT  = {card:'chobi', chobi:'phone', phone:'chobi2', chobi2:'chobi3'};
-const FU_LABEL = {Unknown:'জানা নেই', none:'দামসহ ছবি (কার্ড) এখনো পাঠানো হয়নি', card:'দামসহ ছবি (কার্ড) পাঠানো হয়েছে', chobi:'১ম ফলো-আপ মেসেজ পাঠানো হয়েছে', phone:'ফোন করা হয়েছে', chobi2:'২য় ফলো-আপ মেসেজ পাঠানো হয়েছে', chobi3:'শেষ ফলো-আপ মেসেজ পাঠানো হয়েছে', dormant:'Dormant — আর কিছু পাঠানো হবে না'};
+const FU_LABEL = {Unknown:'জানা নেই', none:'দামসহ ছবি (কার্ড) এখনো পাঠানো হয়নি', card:'দামসহ ছবি (কার্ড) পাঠানো হয়েছে', chobi:'১ম ফলো-আপ মেসেজ পাঠানো হয়েছে', phone:'ফোন করা হয়েছে', chobi2:'২য় ফলো-আপ মেসেজ পাঠানো হয়েছে', chobi3:'শেষ ফলো-আপ মেসেজ পাঠানো হয়েছে', dormant:'Dormant — ফলো-আপ শেষ (এখন শুধু মাসিক নার্চার)'};
 const FU_NEXT_LABEL = {chobi:'১ম ফলো-আপ মেসেজ', phone:'ফোন করা', chobi2:'২য় ফলো-আপ মেসেজ', chobi3:'শেষ ফলো-আপ মেসেজ'};
 function fuStageOf(l){ return l.fuStage || 'Unknown'; }   // পুরোনো লিড: field নেই = Unknown, অনুমান নয়
 function daysBetween(fromIso){ return daysSince(fromIso); }
@@ -728,6 +742,49 @@ function fuNext(l){
   if (elapsed===null) return {stage:'Unknown', next:null, due:false};
   const gap = FU_GAP[st];
   return {stage:st, next:FU_NEXT[st], due: elapsed>=gap, wait: Math.max(0,gap-elapsed), elapsed};
+}
+
+/* ═══ নার্চার: Dormant লিডকে মাসে একবার কাজের মেসেজ, সর্বোচ্চ ৩ বার — শুধু ফোনে (Sheet-এ নতুন কলাম নয়) ═══
+   nurtureCount   = কয়টা নার্চার পাঠানো নিশ্চিত হয়েছে (০–৩) — বাড়ে শুধু ✓ চাপলে, কপিতে নয়
+   nurtureDate    = শেষ নিশ্চিত নার্চারের তারিখ (YYYY-MM-DD)
+   nurturePending = কোন নার্চার কপি হয়েছে কিন্তু পাঠানো নিশ্চিত হয়নি (০/১/২) */
+const NURTURE_GAP = 30, NURTURE_MAX = 3;
+function productWord(p){
+  const t=(p||'').toLowerCase();
+  if(/শার্ট|shirt/.test(t)) return 'শার্ট';
+  if(/পাঞ্জাবি|পাঞ্জাবী|panjabi|punjabi/.test(t)) return 'পাঞ্জাবি';
+  if(/কাবলি|kabli|kabuli/.test(t)) return 'কাবলি';
+  if(/কাতুয়া|katua|fatua|ফতুয়া/.test(t)) return 'কাতুয়া';
+  return '';
+}
+function nurtureText(n, l){
+  const pw=productWord(l && l.product);
+  if(n===0) return 'আসসালামু আলাইকুম ভাই, আশা করি ভালো আছেন। আপনার দোকানের কথা ভেবে আমাদের কিছু বাছাই করা '+(pw?pw+' ':'')+'ডিজাইনের ছবি পাঠালাম। কোনোটা পছন্দ হলে জানাবেন।';
+  if(n===1) return 'আসসালামু আলাইকুম ভাই, আমাদের কারখানায় কাপড় কাটা, সেলাই আর ফিনিশিং কীভাবে হয়, তার একটা ছোট ভিডিও পাঠালাম। মাল নেওয়ার আগে কোয়ালিটি নিজের চোখে দেখে নিতে পারবেন।';
+  return 'আসসালামু আলাইকুম ভাই, প্রথমবার আমাদের মাল যাচাই করতে চাইলে অল্প দিয়ে শুরু করতে পারেন — প্রথম অর্ডারে ১২ পিস নেওয়া যায়, দাম সাধারণ পাইকারি দামই। আগ্রহী হলে জানাবেন, আপনার দোকানের উপযোগী ডিজাইন বাছাই করে দেব।';
+}
+const NURTURE_ATTACH = ['ছবি (৩–৪টা ডিজাইন কার্ড)', 'কারখানার ছোট ভিডিও', ''];
+/* শুধু ফলো-আপ শেষ হওয়া (Dormant) লিডের জন্য; অন্যদের null */
+/* ভাঙা বা ভুল ডেটা থেকে রক্ষা: তারিখ শুধু বৈধ YYYY-MM-DD, আর গোনা শুধু ০–৩ পূর্ণসংখ্যা */
+function validISO(s){ return typeof s==='string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s+'T00:00:00Z')); }
+function nurtureCnt(l){ const n=Number(l && l.nurtureCount); return (Number.isInteger(n) && n>0) ? Math.min(n, NURTURE_MAX) : 0; }
+function nurturePend(l){ const n=Number(l && l.nurturePending); return (l && l.nurturePending!==undefined && l.nurturePending!==null && Number.isInteger(n) && n>=0 && n<NURTURE_MAX) ? n : null; }
+function latestISO(arr){ const v=arr.filter(validISO).sort(); return v.length ? v[v.length-1] : null; }
+function nurtureState(l){
+  const st=fuStageOf(l);
+  if(st!=='chobi3' && st!=='dormant') return null;
+  const cnt=nurtureCnt(l);
+  /* গোনা শুরু সবচেয়ে সাম্প্রতিক যোগাযোগ থেকে — সম্প্রতি কথা হলে নার্চার পিছিয়ে যায় */
+  let base;
+  if(cnt>0) base=latestISO([l.nurtureDate, l.last]);
+  else if(st==='chobi3') base=latestISO([l.last, l.fuStageDate]);   // শেষ ফলো-আপ মেসেজের পর থেকে
+  else base=latestISO([l.last]) || latestISO([l.fuStageDate]);      // হাতে বা ফাইল থেকে বসানো Dormant: শেষ যোগাযোগ থেকে
+  const since=base ? daysSince(base) : null;
+  if(since===null || isNaN(since)) return {cnt, due:false, done:false, wait:null, pending:false};
+  const wait=Math.max(0, NURTURE_GAP-since);
+  if(cnt>=NURTURE_MAX) return {cnt, due:false, done: since>=NURTURE_GAP, wait, pending:false};
+  const due = since>=NURTURE_GAP;
+  return {cnt, due, done:false, wait, pending: due && nurturePend(l)===cnt};
 }
 
 function statusFor(days, type){
@@ -750,7 +807,13 @@ function actionFor(days, type, l){
   if(type!=='নিয়মিত কাস্টমার' && l && fuStageOf(l)!=='Unknown'){
     const n = fuNext(l);
     if (n.stage==='none') return 'কার্ড পাঠাও';
-    if (n.next==='dormant') return 'Dormant — কিছু পাঠাবেন না';
+    if (n.next==='dormant'){
+      const ns=nurtureState(l);
+      if (ns && ns.pending) return 'নার্চার পাঠিয়েছেন? ✓ চাপুন';
+      if (ns && ns.due)  return 'নার্চার মেসেজ পাঠাও';
+      if (ns && ns.done) return 'ইনঅ্যাক্টিভ করার পরামর্শ';
+      return 'Dormant — কিছু পাঠাবেন না';
+    }
     if (!n.due) return 'অপেক্ষা করো';
     if (n.next==='phone') return 'কল করো';
     if (n.next==='chobi3') return 'শেষ ফলো-আপ মেসেজ পাঠাও';
@@ -789,7 +852,7 @@ const QR = {
 };
 /* ⛔ দিয়ে শুরু হলে এটা buyer-এর মেসেজ নয় — কপি/লগ হবে না, শুধু নির্দেশনা দেখাবে */
 const WAIT_NOTE = '⛔ এখন অপেক্ষা করুন — শেষ যোগাযোগের পর অন্তত ২ দিন যাক।';
-const DORMANT_NOTE = '⛔ এখন কিছু পাঠাবেন না (Dormant)। দিন ৩০-এর পর শুধু বাস্তব নতুন কারণ থাকলে /khobor বা /salam।';
+const DORMANT_NOTE = '⛔ এখন কিছু পাঠাবেন না (Dormant)।';
 const NODATE_NOTE = '⛔ শেষ যোগাযোগের তারিখ নেই — আগে তারিখ দিন, তারপর মেসেজ।';
 const EXCLUDED_NOTE = '⛔ এই লিড "আগ্রহী না" (বাদ) — কোনো ফলো-আপ মেসেজ নয়।';
 const INACTIVE_NOTE = '⛔ ইনঅ্যাক্টিভ লিড — App নিজে মেসেজ দেবে না। বাস্তব নতুন কারণ থাকলে Quick Reply থেকে যোগাযোগ করুন।';
@@ -848,7 +911,14 @@ function msgFor(el, rot){
     return '⛔ ফলো-আপ ধাপ জানা নেই — App নিজে মেসেজ দেবে না। ডকের তালিকায় থাকলে ফোন করুন; কথা হলে ↩ চাপুন, না ধরলে /phone পাঠিয়ে Edit-এ ধাপ বসান।';
   }
   if (fu.stage==='none') return '⛔ কার্ড এখনো পাঠানো হয়নি — দামসহ ৩–৪টা ছবি (কার্ড) পাঠান, তারপর Edit-এ "দামসহ ছবি (কার্ড) পাঠানো হয়েছে" দিন।';
-  if (fu.next==='dormant') return DORMANT_NOTE;   // /khobor-এর বাস্তব কারণ App যাচাই করতে পারে না — তাই কখনো auto নয়
+  if (fu.next==='dormant'){
+    /* /khobor বা /salam কখনো auto নয়। শুধু নার্চার: মাসে একবার, কাজের জিনিস, সর্বোচ্চ ৩ বার */
+    const ns=nurtureState(el);
+    if (ns && ns.due)  return nurtureText(ns.cnt, el);   // পুনরাবৃত্তি ঠেকায় গোনা আর তারিখ; noRepeat নয় (না হলে আটকে যেত)
+    if (ns && ns.done) return '⛔ ৩টা নার্চার মেসেজেও সাড়া নেই — আর পাঠাবেন না। ইনঅ্যাক্টিভ করার পরামর্শ (নিচের "ইনঅ্যাক্টিভ করো" বোতাম)।';
+    if (ns && ns.cnt>=NURTURE_MAX) return DORMANT_NOTE + ' ৩টা নার্চার মেসেজই পাঠানো হয়ে গেছে — আর কোনো মেসেজ নয়। '+toBn(ns.wait)+' দিন পর উত্তর না এলে ইনঅ্যাক্টিভ করার পরামর্শ দেখাবে।';
+    return DORMANT_NOTE + (ns && ns.wait!==null ? ' পরের নার্চার মেসেজ '+toBn(ns.wait)+' দিন পর।' : '');
+  }
   /* ── F-2 ধাপ ১: শিডিউলে সময় না হলে keyword থাকলেও মেসেজ নয় ── */
   if (!fu.due) return '⛔ এখন অপেক্ষা করুন — পরের কাজ: ' + FU_NEXT_LABEL[fu.next] + ', ' + toBn(fu.wait) + ' দিন পর।';
 
@@ -979,31 +1049,42 @@ renderLock(); renderDots();
    DATA
 ═══════════════════════════════════════════════ */
 let appReady=false;
+let leadsLoaded=false;   // ফোনের তালিকা পড়া শেষ হওয়ার আগে সিঙ্ক নয় (না হলে সারির জিনিস "মোছা" ভেবে বাদ পড়ত)
 function initApp(){
   if(appReady) return; appReady=true;
   loadLeads(); updateBkHint();
 }
 
 async function loadLeads(){
+  let raw=null, corrupt=false;
   try{
-    const raw=localStorage.getItem(STORE_KEY);
+    raw=localStorage.getItem(STORE_KEY);
     leads=raw?JSON.parse(raw):null;
-  }catch(e){leads=null;}
-  if(!leads){
-    leads=[
-      {id:'s1',type:'লিড',name:'Bhai (Rangpur, ৩ শোরুম)',phone:'01713515204',area:'রংপুর',district:'রংপুর',source:'Facebook',product:'শার্ট (ফুল-স্লিভ)',verified:'হ্যাঁ',first:'2026-05-07',last:'2026-06-21',priceQuoted:'হ্যাঁ',order:'অর্ডার হয়নি',notes:'মে-তে অফিস ভিজিটের কথা বলেছিল, আসেনি। জুনে শর্ট-স্লিভ/পোলো জিজ্ঞেস করেছে।'},
-      {id:'s2',type:'লিড',name:'আলামিন ভাই',phone:'+880 1722-798948',area:'',district:'',source:'WhatsApp',product:'শার্ট',verified:'হ্যাঁ',first:'2026-05-07',last:'2026-06-21',priceQuoted:'হ্যাঁ',order:'আলোচনা চলছে',notes:'WhatsApp-এ যোগাযোগ চলছে'},
-      {id:'s3',type:'লিড',name:'মোঃ রাশেদ পারভেজ BG exclusive',phone:'+880 1915-399591',area:'',district:'',source:'Facebook',product:'শার্ট',verified:'হ্যাঁ',first:'2026-05-09',last:'2026-06-21',priceQuoted:'হ্যাঁ',order:'আলোচনা চলছে',notes:'কিছুই জানায়নি, সাইলেন্ট'},
-      {id:'s4',type:'লিড',name:'আকাশ সাহা',phone:'+880 1772-300232',area:'নারায়ণগঞ্জ',district:'নারায়ণগঞ্জ',source:'Facebook',product:'শার্ট',verified:'হ্যাঁ',first:'2026-05-08',last:'2026-06-21',priceQuoted:'হ্যাঁ',order:'আলোচনা চলছে',notes:'জানাবে বলেছে, ফোন করা হয়েছিল'},
-      {id:'s5',type:'লিড',name:'মোঃ সাইদুজ্জামান (রু ডেনিম বে)',phone:'+880 1642-728292',area:'চট্টগ্রাম',district:'চট্টগ্রাম',source:'Facebook',product:'শার্ট',verified:'হ্যাঁ',first:'2026-05-06',last:'2026-06-21',priceQuoted:'হ্যাঁ',order:'আলোচনা চলছে',notes:'আসার কথা বলেছে, সাইলেন্ট থাকে'},
-      {id:'s6',type:'লিড',name:'মোহাম্মদ রাশেদুল (এক্সো পো)',phone:'+880 1760-226622',area:'',district:'',source:'Facebook',product:'শার্ট',verified:'হ্যাঁ',first:'2026-05-10',last:'2026-06-21',priceQuoted:'হ্যাঁ',order:'আলোচনা চলছে',notes:'সাইলেন্ট থাকে'},
-      {id:'s7',type:'লিড',name:'মোহাম্মদ কালাম ভাই',phone:'+880 1319-086371',area:'কুমিল্লা',district:'কুমিল্লা',source:'Facebook',product:'শার্ট',verified:'হ্যাঁ',first:'2026-05-06',last:'2026-06-21',priceQuoted:'হ্যাঁ',order:'আলোচনা চলছে',notes:'সাইলেন্ট, আগ্রহ ছিল'},
-      {id:'s8',type:'লিড',name:'শাহিনা আক্তার',phone:'+880 1722-267176',area:'উত্তরা',district:'ঢাকা',source:'Facebook',product:'শার্ট',verified:'হ্যাঁ',first:'2026-05-11',last:'2026-06-21',priceQuoted:'হ্যাঁ',order:'আলোচনা চলছে',notes:'রেসপন্স করে না'},
-      {id:'s9',type:'লিড',name:'মোহাম্মদ আসাদুজ্জামান আল আমিন',phone:'+880 1710-260582',area:'',district:'',source:'Facebook',product:'শার্ট',verified:'হ্যাঁ',first:'2026-06-18',last:'2026-06-22',priceQuoted:'হ্যাঁ',order:'আলোচনা চলছে',notes:'কম রেসপন্স'}
-    ];
-    await saveLeads();
+    if(raw && !Array.isArray(leads)) throw new Error('not array');
+  }catch(e){ leads=null; corrupt=!!raw; }
+  if(corrupt){
+    /* ডেটা নষ্ট হলে নমুনা ডেটা দিয়ে ঢেকে দেওয়া নয়: আসল লেখাটা আলাদা জায়গায় রেখে, খালি তালিকা নিয়ে থামি */
+    try{ localStorage.setItem(STORE_KEY+'_corrupt_'+Date.now(), raw); }catch(e2){}
+    leads=[];
+    render();
+    /* leadsLoaded=false থাকে: সারিতে জমা সিঙ্ক এই খালি তালিকা দেখে বাদ পড়বে না */
+    setTimeout(()=>alert('⚠️ ফোনে জমা ডেটা পড়া যাচ্ছে না। কিছু মুছবেন না — "☁️ Sheet থেকে ফেরত আনো" বা "⬆ ফেরত আনো" (শেষ ব্যাকআপ ফাইল) চালান। আসল ডেটার একটা কপি ফোনেই আলাদা করে রাখা হয়েছে।'),300);
+    return;
   }
+  if(!leads){
+    /* একদম নতুন ফোন/ব্রাউজার: নমুনা লিড নয় — খালি তালিকা, আর Sheet থেকে ফেরত আনার প্রস্তাব */
+    leads=[];
+    await saveLeads();
+    leadsLoaded=true;
+    render();
+    setTimeout(()=>{
+      if(leads.length===0 && confirm('এই ফোনে কোনো লিড নেই।\n\nআগের সব লিড Google Sheet থেকে ফেরত আনবেন?\n(গোপন কোড লাগবে)')) restoreFromSheet();
+    },600);
+    return;
+  }
+  leadsLoaded=true;
   render();
+  flushSyncQueue();
 }
 
 async function saveLeads(){
@@ -1021,7 +1102,39 @@ const SYNC_POLL_MS=45000;
 let _syncSeq=0;
 let _flushing=false;
 
-/* ---------- queue helpers (stores lead IDs only, never stale snapshots) ---------- */
+/* ---------- App State (পুরো ব্যাকআপ Sheet-এর "AppState" ট্যাবে) ----------
+   - Sheet1 (A–N)-এ যা যায় তা আগের মতোই। পাশাপাশি লিডের বাকি সব তথ্য (ধাপ, নার্চার, অর্ডার…)
+     ছোট একটা "st" অংশে যায়; Code.gs সেটা AppState ট্যাবে রাখে।
+   - ✓ (পাঠানো নিশ্চিত), ↩, এডিট, ইনঅ্যাক্টিভ/অ্যাক্টিভ → Sheet1 + AppState।
+   - শুধু কপি → Sheet1-এ কিছু যায় না; AppState-এ শুধু "অপেক্ষমাণ" (pendingMsg/nurturePending) —
+     পাঠানো হিসেবে নয় (শেষ মেসেজ, নার্চার গোনা, ধাপ কিছুই বদলায় না)।
+   - AppState-এ পড়া/লেখা গোপন কোড ছাড়া হয় না; কোডটা এই ফোনে একবার দিতে হয়।
+   - একই লিডের দুই কপি থাকলে যেটার updatedAt নতুন সেটাই ঠিক; সমান হলে ফোনেরটা। */
+const STATE_SEED_KEY='obd_state_seeded_v1';
+const STATE_FROM_PARAMS={name:1,owner:1,notes:1,lastMessage:1,campaignSource:1,source:1,type:1,last:1};  // লেখা থাকলে Sheet1-এর প্যারামিটারেই যায় (URL ছোট রাখতে)
+const STATE_KEY_LS='obd_state_key';
+const LEAD_ID_RE=/^[A-Za-z0-9_\-]{1,64}$/;
+const STATE_PERMANENT_ERR={'bad id':1,'bad st':1,'missing id':1,'missing st':1};   // আবার চেষ্টা করেও হবে না
+function stateKey(){ try{ return localStorage.getItem(STATE_KEY_LS)||''; }catch(e){ return ''; } }
+function setStateKey(k){ try{ if(k) localStorage.setItem(STATE_KEY_LS,k); else localStorage.removeItem(STATE_KEY_LS); }catch(e){} updateStateHint(); }
+function stateReady(){ return serverVer>=2 && !!stateKey(); }
+let serverVer=0;          // 0 = এখনো জানা নেই, 1 = পুরোনো Code.gs, 2+ = AppState চালু
+let _pingP=null, _pingAt=0;
+
+function buildSt(lead){
+  const st={};
+  Object.keys(lead).forEach(k=>{
+    const v=lead[k];
+    if(v===undefined) return;
+    if(STATE_FROM_PARAMS[k] && v!=='') return;   // খালি লেখা ('') st-তেই যায়, যাতে ফেরতে হুবহু '' থাকে
+    st[k]=v;
+  });
+  return JSON.stringify(st);
+}
+function touchLead(lead){ lead.updatedAt=Math.max(Date.now(), (Number(lead.updatedAt)||0)+1); }
+
+/* ---------- queue helpers (stores lead IDs only, never stale snapshots) ----------
+   kind: 'full' = Sheet1 + AppState, 'state' = শুধু AppState, 'del' = AppState-এ মোছা চিহ্ন */
 function getQueue(){
   try{ const q=JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY)||'[]'); return Array.isArray(q)?q:[]; }
   catch(e){ return []; }
@@ -1029,15 +1142,23 @@ function getQueue(){
 function setQueue(q){
   try{ localStorage.setItem(SYNC_QUEUE_KEY,JSON.stringify(q)); }catch(e){}
 }
-function queueLead(leadId){
+function queueLead(leadId,kind,extra){
   if(!leadId) return;
-  const q=getQueue().filter(x=>x && x.id!==leadId);
-  q.push({id:leadId,queuedAt:Date.now(),tries:0});
+  kind=kind||'full';
+  const all=getQueue();
+  const prev=all.find(x=>x && x.id===leadId);
+  if(kind==='state' && prev && (prev.kind||'full')==='full') kind='full';   // full-এর ভেতরেই state যায়
+  if(kind!=='del' && prev && prev.kind==='del' && !(extra && extra.force) && !leads.some(l=>l && l.id===leadId)) return;   // মোছা লিডের পুরোনো সিঙ্ক মোছাকে ঢাকবে না
+  if(extra && extra.force){ extra=Object.assign({},extra); delete extra.force; }
+  const q=all.filter(x=>x && x.id!==leadId);
+  let qAt=Date.now(); if(prev && prev.queuedAt>=qAt) qAt=prev.queuedAt+1;   // প্রতিটি এন্ট্রির আলাদা ছাপ
+  q.push(Object.assign({id:leadId,kind,queuedAt:qAt,tries:0},extra||{}));
   setQueue(q);
   updateSyncBadge();
 }
-function dequeueLead(leadId){
-  setQueue(getQueue().filter(x=>x && x.id!==leadId));
+/* queuedAt দিলে শুধু সেই নির্দিষ্ট এন্ট্রিটা সরে — পাঠানোর মাঝে নতুন পরিবর্তন এলে সেটা হারায় না */
+function dequeueLead(leadId,queuedAt){
+  setQueue(getQueue().filter(x=>x && !(x.id===leadId && (queuedAt===undefined || x.queuedAt===queuedAt))));
   updateSyncBadge();
 }
 function bumpTries(leadId){
@@ -1045,9 +1166,11 @@ function bumpTries(leadId){
   const it=q.find(x=>x && x.id===leadId);
   if(it){ it.tries=(it.tries||0)+1; it.lastTry=Date.now(); setQueue(q); }
 }
-function pendingCount(){ return getQueue().length; }
+/* পুরোনো Code.gs থাকলে state/del পাঠানো যায় না — সেগুলো "বাকি" হিসেবে দেখানো হয় না, শুধু জমা থাকে */
+function pendingCount(){ const ok=stateReady(); return getQueue().filter(x=>x && ((x.kind||'full')==='full' || ok)).length; }
 
-/* Backward compatibility: old queue stored full lead objects. Convert to ID-only. */
+/* Backward compatibility: old queue stored full lead objects. Convert to ID-only (kind রেখে)। */
+const QUEUE_ITEM_KEYS={id:1,kind:1,queuedAt:1,tries:1,lastTry:1,delAt:1};
 function migrateOldQueue(){
   const q=getQueue();
   if(!q.length) return;
@@ -1058,8 +1181,9 @@ function migrateOldQueue(){
     if(!x||!x.id) { changed=true; return; }
     if(seen[x.id]) { changed=true; return; }
     seen[x.id]=1;
-    if(x.queuedAt!==undefined && x.tries!==undefined && Object.keys(x).length<=4){ out.push(x); }
-    else { out.push({id:x.id,queuedAt:x._queuedAt||Date.now(),tries:0}); changed=true; }
+    const clean = x.queuedAt!==undefined && x.tries!==undefined && Object.keys(x).every(k=>QUEUE_ITEM_KEYS[k]);
+    if(clean){ out.push(x); }
+    else { out.push({id:x.id,kind:'full',queuedAt:x._queuedAt||x.queuedAt||Date.now(),tries:0}); changed=true; }
   });
   if(changed) setQueue(out);
 }
@@ -1082,7 +1206,10 @@ function updateSyncBadge(){
 }
 
 /* ---------- request builder ---------- */
-function buildSyncParams(lead){
+function buildSyncParams(lead,kind){
+  if(kind==='del'){
+    return new URLSearchParams({action:'delete', id:lead.id||'', updatedAt:String(lead.delAt||Date.now()), k:stateKey()});
+  }
   const rawPhone=(lead.phone||'').replace(/[^0-9]/g,'');
   let cleanPhone=rawPhone;
   if(rawPhone.startsWith('880') && rawPhone.length>=13){ cleanPhone=rawPhone; }
@@ -1090,7 +1217,7 @@ function buildSyncParams(lead){
   else if(rawPhone.length===10 && !rawPhone.startsWith('0') && !rawPhone.startsWith('880')){ cleanPhone='880'+rawPhone; }
   else if(rawPhone.length>=11 && !rawPhone.startsWith('880')){ cleanPhone='880'+rawPhone; }
 
-  return new URLSearchParams({
+  const p=new URLSearchParams({
     id: lead.id||'',
     shopName: lead.name||'',
     ownerName: lead.owner||'',
@@ -1105,72 +1232,177 @@ function buildSyncParams(lead){
     campaignSource: lead.campaignSource||'',
     activeState: lead.activeState||'অ্যাক্টিভ'
   });
+  const k=stateKey();
+  if(k){ p.set('st',buildSt(lead)); p.set('k',k); }   // কোড না থাকলে আগের মতোই শুধু Sheet1
+  if(kind==='state') p.set('action','state');      // শুধু AppState; Sheet1 ছোঁয় না
+  return p;
 }
 
-/* ---------- single request: real success detection via JSONP callback ---------- */
-function sendToSheet(lead){
+/* ---------- JSONP request: resolves the server reply (or null on failure) ---------- */
+function jsonpCall(params,timeoutMs){
   return new Promise(resolve=>{
-    if(!lead || !navigator.onLine){ resolve(false); return; }
+    if(!navigator.onLine){ resolve(null); return; }
     const cbName='__obdSync'+(++_syncSeq)+'_'+Date.now();
     let done=false, timer=null;
     const script=document.createElement('script');
-    const finish=ok=>{
+    const finish=resp=>{
       if(done) return;
       done=true;
       if(timer) clearTimeout(timer);
       try{ delete window[cbName]; }catch(e){ window[cbName]=undefined; }
       if(script.parentNode) script.parentNode.removeChild(script);
-      resolve(!!ok);
+      resolve(resp||null);
     };
-    window[cbName]=resp=>{ finish(resp && resp.status==='ok'); };
-    timer=setTimeout(()=>finish(false),SYNC_TIMEOUT_MS);
-    const params=buildSyncParams(lead);
+    window[cbName]=resp=>finish(resp && typeof resp==='object' ? resp : null);
+    timer=setTimeout(()=>finish(null),timeoutMs||SYNC_TIMEOUT_MS);
     params.set('callback',cbName);
     script.async=true;
-    script.onerror=()=>finish(false);
+    script.onerror=()=>finish(null);
     script.src=SCRIPT_URL+'?'+params.toString();
     document.head.appendChild(script);
   });
+}
+function sendToSheet(lead,kind){
+  if(!lead) return Promise.resolve(null);
+  return jsonpCall(buildSyncParams(lead,kind||'full'));
+}
+const isOk=r=>!!(r && r.status==='ok');
+
+/* ---------- Code.gs-এর সংস্করণ জানা (প্রতি খোলায় একবার; নেট না থাকলে পরে আবার) ---------- */
+function ensureServerVer(){
+  if(serverVer>=2 || (serverVer===1 && Date.now()-_pingAt<600000)) return Promise.resolve(serverVer);   // পুরোনো Code.gs হলে ১০ মিনিট পর আবার দেখা
+  if(_pingP) return _pingP;
+  _pingAt=Date.now();
+  _pingP=jsonpCall(new URLSearchParams({action:'ping'})).then(r=>{
+    _pingP=null;
+    if(r){ serverVer = (r.status==='ok' && Number(r.version)>=2) ? Number(r.version) : 1; }
+    updateSyncBadge(); updateStateHint();
+    return serverVer;
+  });
+  return _pingP;
+}
+
+/* ---------- প্রথমবার: ফোনের সব লিড AppState-এ তোলা (শুধু AppState — Sheet1, লিডের কোনো তথ্য বদলায় না) ---------- */
+function seedStateIfNeeded(){
+  if(!stateReady()) return false;
+  try{ if(localStorage.getItem(STATE_SEED_KEY)) return false; }catch(e){ return false; }
+  const all=getQueue();
+  const have={}; all.forEach(x=>{ if(x&&x.id) have[x.id]=x; });
+  const add=[];
+  leads.forEach(l=>{
+    if(!l || !l.id || have[l.id]) return;     // আগে থেকেই সারিতে আছে (full/del) — সেটাই যাবে
+    add.push({id:l.id,kind:'state',queuedAt:Date.now(),tries:0});
+  });
+  setQueue(all.concat(add));
+  try{ localStorage.setItem(STATE_SEED_KEY,String(Date.now())); }catch(e){}
+  updateSyncBadge();
+  return true;
 }
 
 /* ---------- public: sync one lead, auto-queue on any failure ---------- */
 async function syncLead(lead,opts){
   opts=opts||{};
   if(!lead||!lead.id) return false;
+  touchLead(lead); await saveLeads();     // এটা আসল পরিবর্তন — সময়ছাপ (কোন কপি নতুন বোঝার জন্য)
   if(!navigator.onLine){
-    queueLead(lead.id);
+    queueLead(lead.id,'full');
     if(!opts.silent) toast('📶 অফলাইন — অনলাইনে এলে নিজে থেকেই যাবে');
     return false;
   }
-  const ok=await sendToSheet(lead);
+  const before=getQueue().find(x=>x && x.id===lead.id && x.kind!=='del');   // পাঠানোর আগের পুরোনো এন্ট্রি
+  const r=await sendToSheet(lead,'full');
+  const ok=isOk(r);
   if(ok){
-    dequeueLead(lead.id);
+    if(before) dequeueLead(lead.id,before.queuedAt);   // শুধু সেটাই সরে; পাঠানোর মাঝে নতুন কিছু এলে বা মোছার চিহ্ন থাকলে সেটা থাকে
+    if(r.state==='error' && !STATE_PERMANENT_ERR[r.stateMessage]) queueLead(lead.id,'state');
+    if(r.state==='auth'){ keyRejected(); }   // Sheet1 হয়েছে, AppState হয়নি → শুধু সেটুকু আবার
     if(!opts.silent) toast('☁️ Google Sheet-এ সেভ হয়েছে');
   } else {
-    queueLead(lead.id);
+    queueLead(lead.id,'full');
     if(!opts.silent) toast('⚠️ সিঙ্ক হয়নি — পরে নিজে থেকেই চেষ্টা করবে');
   }
   return ok;
 }
 
+/* লিড মোছা: ফোন থেকে মুছে, AppState-এ শুধু "মোছা" চিহ্ন (Sheet1-এ আগের মতোই কিছু যায় না) */
+function queueDelete(leadId){
+  queueLead(leadId,'del',{delAt:Date.now()});
+}
+
+/* গোপন কোড সার্ভারে মিলল না (Code.gs-এ কোড বদলানো হয়েছে) → এই ফোনের কোড মুছে আবার চাওয়া; জমা সিঙ্ক থাকে */
+function keyRejected(){
+  setStateKey('');
+  try{ localStorage.removeItem(STATE_SEED_KEY); }catch(e){}   // নতুন কোড দিলে সব লিড আবার তোলা হবে — মাঝের পরিবর্তন হারাবে না
+  toast('⚠️ Sheet ব্যাকআপের গোপন কোড মেলেনি — নিচের "Sheet ব্যাকআপ চালু করুন" চেপে নতুন কোড দিন');
+}
+function updateStateHint(){
+  const el=document.getElementById('stateHint'); if(!el) return;
+  if(serverVer<2){ el.style.display='none'; return; }
+  el.style.display='block';
+  if(!stateKey()){
+    el.innerHTML='☁️ Sheet-এ পুরো ব্যাকআপ এখনো চালু হয়নি — <u>চালু করতে এখানে চাপুন</u>';
+    el.style.color='#B45309'; el.style.fontWeight='700'; el.style.cursor='pointer';
+  } else {
+    el.textContent='☁️ Sheet-এ পুরো ব্যাকআপ চালু আছে';
+    el.style.color=''; el.style.fontWeight=''; el.style.cursor='';
+  }
+}
+async function askAndCheckKey(msg){
+  const key=prompt(msg);
+  if(key===null || key===undefined) return null;
+  const k=String(key).trim();
+  if(!k){ toast('⚠️ কোড দেননি'); return null; }
+  return k;
+}
+async function enableSheetBackup(){
+  if(stateKey()) return;
+  if(!navigator.onLine){ toast('📶 নেট নেই — অনলাইনে এসে আবার চাপুন'); return; }
+  const k=await askAndCheckKey('Sheet ব্যাকআপ চালু করতে গোপন কোড দিন (Code.gs-এ যেটা বসিয়েছেন):');
+  if(!k) return;
+  const r=await jsonpCall(new URLSearchParams({action:'check',k}));
+  if(!r){ alert('⚠️ Sheet-এ পৌঁছানো গেল না। পরে আবার চেষ্টা করুন।'); return; }
+  if(r.status!=='ok'){ alert(r.message==='restore key not set' ? '⚠️ Code.gs-এ গোপন কোড বসানো হয়নি (RESTORE_KEY)।' : '⚠️ গোপন কোড মেলেনি।'); return; }
+  serverVer=Math.max(serverVer, Number(r.version)||2);
+  setStateKey(k);
+  toast('✅ Sheet ব্যাকআপ চালু — সব লিড Sheet-এ তোলা শুরু হলো (একবারই)');
+  flushSyncQueue();
+}
+
 /* ---------- queue flush: sequential, latest data, never silently drops ---------- */
 async function flushSyncQueue(manual){
+  if(!leadsLoaded){ updateSyncBadge(); return; }   // PIN খোলার/তালিকা পড়ার আগে নয়
   if(_flushing) return;
-  migrateOldQueue();
-  const q=getQueue();
-  if(!q.length){ updateSyncBadge(); if(manual) toast('✓ সব সিঙ্ক করা আছে'); return; }
-  if(!navigator.onLine){ updateSyncBadge(); if(manual) toast('📶 এখন অফলাইন'); return; }
-
-  _flushing=true;
+  _flushing=true;                                   // ping-এর অপেক্ষার সময়েও দ্বিতীয় flush ঢুকবে না
   let sent=0, failed=0;
   try{
+    migrateOldQueue();
+    if(navigator.onLine && serverVer<2) await ensureServerVer();   // প্রতি খোলায় একবার (পুরোনো হলে ১০ মিনিট পরপর)
+    seedStateIfNeeded();
+    const q=getQueue();
+    if(!pendingCount()){ if(manual) toast('✓ সব সিঙ্ক করা আছে'); return; }
+    if(!navigator.onLine){ if(manual) toast('📶 এখন অফলাইন'); return; }
+
     for(const item of q){
       if(!navigator.onLine) break;
-      const lead=leads.find(x=>x.id===item.id);
-      if(!lead){ dequeueLead(item.id); continue; }   // deleted locally — drop from queue
-      const ok=await sendToSheet(lead);
-      if(ok){ dequeueLead(item.id); sent++; }
-      else { bumpTries(item.id); failed++; }
+      const kind=item.kind||'full';
+      if(kind!=='full' && !stateReady()) continue;        // পুরোনো Code.gs বা কোড নেই — জমা থাকুক
+      let target;
+      if(kind==='del'){ target={id:item.id,delAt:item.delAt||item.queuedAt}; }
+      else {
+        target=leads.find(x=>x.id===item.id);
+        if(!target){ dequeueLead(item.id,item.queuedAt); continue; }   // deleted locally — drop from queue
+      }
+      const r=await sendToSheet(target,kind);
+      if(isOk(r)){
+        dequeueLead(item.id,item.queuedAt); sent++;
+        if(kind==='full' && r.state==='error' && !STATE_PERMANENT_ERR[r.stateMessage]) queueLead(item.id,'state');
+        if(kind==='full' && r.state==='auth'){ keyRejected(); }
+      }
+      else {
+        bumpTries(item.id); failed++;
+        if(r && r.message==='wrong key'){ keyRejected(); break; }   // কোড বদলেছে — নতুন কোড না দেওয়া পর্যন্ত থামা
+        if(r && STATE_PERMANENT_ERR[r.message]){ dequeueLead(item.id,item.queuedAt); }   // স্থায়ী ত্রুটি — বারবার পাঠানো নয়
+      }
       await new Promise(r=>setTimeout(r,SYNC_GAP_MS));
     }
   } finally {
@@ -1179,6 +1411,103 @@ async function flushSyncQueue(manual){
   }
   if(sent>0) toast('☁️ '+sent+' টি এন্ট্রি Sheet-এ সিঙ্ক হয়েছে');
   else if(manual && failed>0) toast('⚠️ সিঙ্ক হয়নি — নেট চেক করুন');
+}
+
+/* ═══ Sheet থেকে ফেরত আনা (ব্যাকআপ ফাইলের মতো, কিন্তু Sheet থেকে) ═══
+   নিয়ম: প্রতিটি লিডের যেটা নতুন (updatedAt) সেটা থাকে; সমান হলে ফোনেরটা।
+   ফোনে আছে কিন্তু Sheet-এ নেই → ফোনেরটা থাকে (আর Sheet-এ তোলা হয়)।
+   আগে ফোনের তালিকার একটা কপি রাখা হয়: obd_leads_before_restore */
+const RESTORE_SNAP_KEY='obd_leads_before_restore';
+/* Sheet থেকে আসা লিড যাচাই: শুধু সাধারণ লেখা/সংখ্যা; অচেনা গঠন বাদ (Sheet-এ কেউ উল্টাপাল্টা লিখলেও App-এ কোড চলবে না) */
+function sanitizeLead(lead, id){
+  if(!lead || typeof lead!=='object' || Array.isArray(lead)) return null;
+  const out={type:'লিড'};
+  for(const k of Object.keys(lead)){
+    if(k==='__proto__' || k==='constructor' || k==='prototype') continue;
+    const v=lead[k], t=typeof v;
+    if(v===null || t==='string' || t==='number' || t==='boolean') out[k]=v;
+  }
+  out.id=id;
+  if(typeof out.type!=='string') out.type='লিড';
+  return out;
+}
+function planRestore(local, remote, pendingDel){
+  const byId={}; local.forEach(l=>{ if(l&&l.id) byId[l.id]=l; });
+  const seen=Object.assign({},pendingDel||{});   // এই ফোনে মোছা, Sheet-এ এখনো পৌঁছায়নি → ফেরত আনা হবে না
+  const plan={add:[],upd:[],del:[],same:0,localOnly:[],localNewer:[]};
+  remote.forEach(r=>{
+    if(!r || typeof r.id!=='string' || !LEAD_ID_RE.test(r.id) || seen[r.id]) return;
+    seen[r.id]=1;
+    const loc=byId[r.id];
+    const rAt=Number(r.updatedAt)||0, lAt=loc?(Number(loc.updatedAt)||0):0;
+    if(r.deleted){
+      if(loc && rAt>lAt) plan.del.push(r.id);
+      else if(loc){ plan.same++; if(lAt>rAt) plan.localNewer.push(r.id); }
+      return;
+    }
+    const clean=sanitizeLead(r.lead, r.id);
+    if(!clean) return;
+    if(!loc) plan.add.push(clean);
+    else if(rAt>lAt) plan.upd.push(clean);
+    else { plan.same++; if(lAt>rAt) plan.localNewer.push(r.id); }
+  });
+  local.forEach(l=>{ if(l && l.id && !seen[l.id]) plan.localOnly.push(l.id); });
+  return plan;
+}
+function applyRestore(local, plan){
+  const upd={}; plan.upd.forEach(l=>upd[l.id]=l);
+  const del={}; plan.del.forEach(id=>del[id]=1);
+  const out=local.filter(l=>!(l && del[l.id])).map(l=>(l && upd[l.id]) ? upd[l.id] : l);
+  return out.concat(plan.add);
+}
+async function restoreFromSheet(){
+  if(!navigator.onLine){ toast('📶 নেট নেই — অনলাইনে এসে আবার চাপুন'); return; }
+  const key=stateKey() || await askAndCheckKey('Sheet থেকে ফেরত আনার গোপন কোড দিন (Code.gs-এ যেটা বসিয়েছেন):');
+  if(!key) return;
+  toast('☁️ Sheet থেকে আনছি…');
+  const r=await jsonpCall(new URLSearchParams({action:'export',k:key}),60000);
+  if(!r){ alert('⚠️ Sheet-এ পৌঁছানো গেল না। নেট দেখে আবার চেষ্টা করুন। ফোনের কিছুই বদলায়নি।'); return; }
+  if(r.status!=='ok' || !Array.isArray(r.leads)){
+    const m = r.message==='wrong key' ? 'গোপন কোড মেলেনি।'
+            : r.message==='restore key not set' ? 'Code.gs-এ গোপন কোড বসানো হয়নি (RESTORE_KEY)।'
+            : (r.status==='error' && /missing id/.test(r.message||'')) ? 'Sheet-এর Code.gs এখনো পুরোনো — নতুনটা বসিয়ে New version deploy করুন।'
+            : 'Sheet থেকে ঠিকমতো উত্তর আসেনি ('+(r.message||'?')+')।';
+    if(r.message==='wrong key' && stateKey()) setStateKey('');
+    alert('⚠️ '+m+' ফোনের কিছুই বদলায়নি।'); return;
+  }
+  serverVer=Math.max(serverVer, Number(r.version)||2);
+  if(stateKey()!==key) setStateKey(key);   // সঠিক কোড — এই ফোন থেকেও এখন Sheet ব্যাকআপ চলবে
+  const pendingDel={}; getQueue().forEach(x=>{ if(x && x.kind==='del') pendingDel[x.id]=1; });
+  const plan=planRestore(leads, r.leads, pendingDel);
+  const live=r.leads.filter(x=>x && !x.deleted).length;
+  if(!plan.add.length && !plan.upd.length && !plan.del.length){
+    alert('✓ ফোনের কিছু বদলানোর দরকার নেই — Sheet-এ নতুন বা আলাদা কিছু নেই (Sheet-এ '+toBn(live)+' টি লিড)।'
+          +(plan.localOnly.length?' ফোনে '+toBn(plan.localOnly.length)+' টি লিড আছে যা Sheet-এ নেই — সেগুলো Sheet-এ তোলা হবে।':''));
+    plan.localOnly.concat(plan.localNewer).forEach(id=>queueLead(id,'state'));
+    leadsLoaded=true;
+    try{ localStorage.setItem(STATE_SEED_KEY,String(Date.now())); }catch(e){}
+    flushSyncQueue();
+    return;
+  }
+  const msg='Sheet-এ '+toBn(live)+' টি লিড আছে।\n\n'
+    +'➕ নতুন যোগ হবে: '+toBn(plan.add.length)+'\n'
+    +'🔄 নতুন তথ্যে আপডেট হবে: '+toBn(plan.upd.length)+'\n'
+    +'🗑️ মোছা হবে (অন্য ফোনে মোছা): '+toBn(plan.del.length)+'\n'
+    +'📱 শুধু এই ফোনে আছে (রেখে দেওয়া হবে): '+toBn(plan.localOnly.length)+'\n'
+    +'= এখন ফোনে '+toBn(leads.length)+' → পরে '+toBn(leads.length+plan.add.length-plan.del.length)+'\n\nআগাবেন?';
+  if(!confirm(msg)) return;
+  if(leads.length){
+    try{ localStorage.setItem(RESTORE_SNAP_KEY, JSON.stringify({savedAt:Date.now(),leads})); }
+    catch(e){ if(!confirm('⚠️ ফোনের এখনকার তালিকার কপি রাখা গেল না (জায়গা কম)। আগে "⬇ ব্যাকআপ" নিয়ে নেওয়া ভালো। তবুও আগাবেন?')) return; }
+  }
+  leads=applyRestore(leads, plan);
+  await saveLeads();
+  leadsLoaded=true;
+  try{ localStorage.setItem(STATE_SEED_KEY,String(Date.now())); }catch(e){}
+  plan.localOnly.concat(plan.localNewer).forEach(id=>queueLead(id,'state'));   // ফোনেরটা নতুন/শুধু ফোনে → Sheet-এ তোলা
+  render();
+  toast('✅ Sheet থেকে ফেরত আনা হয়েছে — এখন ফোনে '+toBn(leads.length)+' টি লিড');
+  flushSyncQueue();
 }
 
 /* ---------- triggers: online, tab visible, window focus, periodic, startup ---------- */
@@ -1210,6 +1539,10 @@ function enrich(l){
   }
   const act=actionFor(d,type,l);
   if(act==='ধাপ ঠিক করুন') return {...l,type,days:d,activeState:l.activeState||'অ্যাক্টিভ',status:{label:'ধাপ জানা নেই',cls:'bg-slate'},action:act};
+  /* Dormant লিডের লেবেল শেষ যোগাযোগের দিন দিয়ে নয়, নার্চারের অবস্থা দিয়ে — লাল "পুনঃসক্রিয়" আর দেখাবে না */
+  if(act==='নার্চার মেসেজ পাঠাও' || act==='নার্চার পাঠিয়েছেন? ✓ চাপুন') return {...l,type,days:d,activeState:l.activeState||'অ্যাক্টিভ',status:{label:'নার্চারের সময়',cls:'bg-yellow'},action:act};
+  if(act==='ইনঅ্যাক্টিভ করার পরামর্শ') return {...l,type,days:d,activeState:l.activeState||'অ্যাক্টিভ',status:{label:'ইনঅ্যাক্টিভ করুন?',cls:'bg-dormant'},action:act};
+  if(act==='Dormant — কিছু পাঠাবেন না') return {...l,type,days:d,activeState:l.activeState||'অ্যাক্টিভ',status:{label:'Dormant',cls:'bg-dormant'},action:act};
   return {...l,type,days:d,activeState:l.activeState||'অ্যাক্টিভ',status:statusFor(d,type),action:act};
 }
 
@@ -1217,7 +1550,7 @@ function render(){
   setTodayLabel();
 
   const all=leads.map(enrich);
-  let counts={c1:0,c2:0,c3:0,c4:0,c5:0,c6:0,c8:0,c9:0,c10:0};
+  let counts={c1:0,c2:0,c3:0,c4:0,c5:0,c6:0,c8:0,c9:0,c10:0,c11:0,c12:0};
   all.forEach(l=>{
     // ইনঅ্যাক্টিভ লিড: আলাদা কাউন্টার, রোজকার কাজে গোনা হবে না
     if(l.activeState==='ইনঅ্যাক্টিভ' && l.order!=='আগ্রহী না'){
@@ -1231,6 +1564,8 @@ function render(){
       if(l.priceQuoted==='না'&&l.order!=='আলোচনা চলছে'&&l.order!=='কনভার্ট হয়েছে'&&l.order!=='আগ্রহী না') counts.c3++;
       if(l.action==='পুনঃসক্রিয়করণ ক্যাম্পেইনে যোগ করো') counts.c4++;
       if(l.action==='ধাপ ঠিক করুন') counts.c10++;
+      if(l.action==='নার্চার মেসেজ পাঠাও' || l.action==='নার্চার পাঠিয়েছেন? ✓ চাপুন') counts.c11++;
+      if(l.action==='ইনঅ্যাক্টিভ করার পরামর্শ') counts.c12++;
     } else {
       if(l.action==='খোঁজ নিন (/feedback)') counts.c5++;
       if(l.action==='সরাসরি যোগাযোগ করো') counts.c6++;
@@ -1245,6 +1580,8 @@ function render(){
   document.getElementById('sc8').textContent=toBn(counts.c8);
   document.getElementById('sc9').textContent=toBn(counts.c9);
   document.getElementById('sc10').textContent=toBn(counts.c10);
+  document.getElementById('sc11').textContent=toBn(counts.c11);
+  document.getElementById('sc12').textContent=toBn(counts.c12);
   // রিঅর্ডার counter
   const reorderCount = leads.filter(isReorderDue).length;
   document.getElementById('sc7').textContent=toBn(reorderCount);
@@ -1281,6 +1618,10 @@ function render(){
     working=working.filter(l=>l.priceQuoted==='না'&&l.order!=='আলোচনা চলছে'&&l.order!=='কনভার্ট হয়েছে'&&l.order!=='আগ্রহী না'&&l.activeState!=='ইনঅ্যাক্টিভ');
   } else if(activeFilter==='a:পুনঃসক্রিয়'){
     working=working.filter(l=>l.action==='পুনঃসক্রিয়করণ ক্যাম্পেইনে যোগ করো');
+  } else if(activeFilter==='a:নার্চার'){
+    working=working.filter(l=>l.action==='নার্চার মেসেজ পাঠাও' || l.action==='নার্চার পাঠিয়েছেন? ✓ চাপুন');
+  } else if(activeFilter==='a:ইনঅ্যাক্টিভ-পরামর্শ'){
+    working=working.filter(l=>l.action==='ইনঅ্যাক্টিভ করার পরামর্শ');
   } else if(activeFilter==='a:ধাপ'){
     working=working.filter(l=>l.action==='ধাপ ঠিক করুন');
   } else if(activeFilter==='a:খোঁজ নিন'){
@@ -1313,7 +1654,7 @@ function render(){
     :`${toBn(working.length)} টা পাওয়া গেছে`;
 
   // sort: crimson → orange → yellow → green → teal(ইনঅ্যাক্টিভ due) → slate(ইনঅ্যাক্টিভ) → gray(বাদ)
-  const ord={'bg-crimson':0,'bg-orange':1,'bg-yellow':2,'bg-green':3,'bg-teal':4,'bg-slate':5,'bg-gray':6};
+  const ord={'bg-crimson':0,'bg-orange':1,'bg-yellow':2,'bg-green':3,'bg-dormant':3.8,'bg-teal':4,'bg-slate':5,'bg-gray':6};
   working.sort((a,b)=>{
     const oa=ord[a.status.cls]??3.5, ob=ord[b.status.cls]??3.5;
     if(oa!==ob) return oa-ob;
@@ -1337,13 +1678,13 @@ function render(){
     const dl=l.days===null?'—':toBn(l.days)+' দিন আগে';
     const srcChip=l.source?`<span class="chip chip-src">${esc(l.source)}</span>`:'';
     const inactChip=(l.activeState==='ইনঅ্যাক্টিভ'&&l.order!=='আগ্রহী না')?`<span class="chip chip-inact">🔵 ইনঅ্যাক্টিভ</span>`:'';
-    return `<div class="lcard" onclick="openDetail('${l.id}')">
+    return `<div class="lcard" data-id="${esc(l.id)}" onclick="openDetail(this.dataset.id)">
       <div class="lcard-top">
         <div>
           <div class="lcard-name">${esc(l.name)||'নাম নেই'}</div>
           <div class="lcard-phone">${l.owner?esc(l.owner)+' · ':''}${esc(l.phone)||'—'}${l.area?` · ${esc(l.area)}`:''}${l.district&&l.district!==l.area?`, ${esc(l.district)}`:''}</div>
           <div class="lcard-chips">
-            <span class="chip ${l.type==='নিয়মিত কাস্টমার'?'chip-cust':'chip-lead'}">${l.type}</span>
+            <span class="chip ${l.type==='নিয়মিত কাস্টমার'?'chip-cust':'chip-lead'}">${esc(l.type)}</span>
             ${srcChip}${inactChip}
           </div>
         </div>
@@ -1391,6 +1732,9 @@ function openDetail(id){
   document.getElementById('d_name').textContent=l.name||'নাম নেই';
   document.getElementById('d_phone').textContent=l.phone||'—';
   document.getElementById('d_action').textContent=actionText(l.action);
+  const pendEl=document.getElementById('d_pending');
+  if(l.pendingMsg){ pendEl.style.display='block'; pendEl.textContent='📝 কপি করা মেসেজ পাঠানো এখনো নিশ্চিত হয়নি — পাঠিয়ে থাকলে ✓ চাপুন।'; }
+  else { pendEl.style.display='none'; pendEl.textContent=''; }
 
   const badge=document.getElementById('d_badge');
   badge.className='badge '+l.status.cls;
@@ -1399,7 +1743,7 @@ function openDetail(id){
   const chips=document.getElementById('d_chips');
   const srcChip=l.source?`<span class="chip chip-src">${esc(l.source)}</span>`:'';
   const inactChip=(l.activeState==='ইনঅ্যাক্টিভ'&&l.order!=='আগ্রহী না')?`<span class="chip chip-inact">🔵 ইনঅ্যাক্টিভ</span>`:'';
-  chips.innerHTML=`<span class="chip ${l.type==='নিয়মিত কাস্টমার'?'chip-cust':'chip-lead'}">${l.type}</span>${srcChip}${inactChip}`;
+  chips.innerHTML=`<span class="chip ${l.type==='নিয়মিত কাস্টমার'?'chip-cust':'chip-lead'}">${esc(l.type)}</span>${srcChip}${inactChip}`;
 
   document.getElementById('d_owner').textContent=l.owner||'—';
   document.getElementById('d_area').textContent=
@@ -1414,7 +1758,9 @@ function openDetail(id){
   const isCustD=l.type==='নিয়মিত কাস্টমার';
   document.getElementById('d_fustage').textContent=isCustD
     ? 'প্রযোজ্য নয় (নিয়মিত কাস্টমার)'
-    : (FU_LABEL[fuStageOf(l)]||'—')+(l.fuStageDate?' · '+formatDate(l.fuStageDate):'');
+    : (FU_LABEL[fuStageOf(l)]||'—')+(l.fuStageDate?' · '+formatDate(l.fuStageDate):'')
+      + (nurtureState(l) ? ' · নার্চার '+toBn(nurtureCnt(l))+'/'+toBn(NURTURE_MAX)+' পাঠানো'+(validISO(l.nurtureDate)?' (শেষ: '+formatDate(l.nurtureDate)+')':'')
+         + (nurtureState(l).pending ? ' · নার্চার '+toBn(nurtureCnt(l)+1)+' কপি হয়েছে, পাঠানো নিশ্চিত হয়নি' : '') : '');
   document.getElementById('d_lastOrder').textContent=l.lastOrder?formatDate(l.lastOrder):(isCustD?'দেওয়া নেই — এডিটে তারিখ দিন':'—');
   const lm=(l.lastMessage||'').trim();
   document.getElementById('d_lastMsg').textContent=lm?(lm.length>70?lm.slice(0,70)+'…':lm):'—';
@@ -1453,25 +1799,46 @@ document.getElementById('d_copyMsgBtn').addEventListener('click',async()=>{
   const rot=l._msgRot||0;
   const text=msgFor(el,rot);
   if(text.startsWith('⛔')){ toast(text); return; }
-  copyText(text,'📝 মেসেজ কপি হয়েছে');
+  /* কপি মানে পাঠানো নয়। কপিতে শুধু "অপেক্ষমাণ" মেসেজ রাখা হয় —
+     ধাপ এগোনো, নার্চার গোনা, শেষ মেসেজ লগ আর Sheet-সিঙ্ক হয় ✓ চাপলে (পাঠানো নিশ্চিত হলে)। */
+  const nsCopy=((l.type||'লিড')!=='নিয়মিত কাস্টমার' && !isInactive(l) && l.order!=='আগ্রহী না') ? nurtureState(l) : null;
+  const isNurture = !!(nsCopy && nsCopy.due && text===nurtureText(nsCopy.cnt, l));
+  const attach = isNurture ? NURTURE_ATTACH[nsCopy.cnt] : '';
+  copyText(text, (isNurture ? '📝 নার্চার '+toBn(nsCopy.cnt+1)+' কপি হয়েছে — ' : '📝 কপি হয়েছে — ')
+                 + (attach ? 'সাথে '+attach+' জুড়ে ' : '') + 'WhatsApp-এ পাঠান, তারপর ✓ চাপুন');
   l._msgRot=rot+1;
-  l.lastMessage=text;
-  /* F-1: লিডের নির্ধারিত ধাপের মেসেজ গেলে ধাপ এগোয় (Last Contact ছোঁয় না) */
-  if((l.type||'লিড')!=='নিয়মিত কাস্টমার' && !isInactive(l) && l.order!=='আগ্রহী না'){
-    const n=fuNext(l);
-    if(n.due && n.next && n.next!=='dormant' && text===QR[n.next]){ l.fuStage=n.next; l.fuStageDate=todayISO(); }
-  }
-  await saveLeads();
-  syncLead(l,{silent:true});
+  l.pendingMsg=text;
+  if(isNurture) l.nurturePending=nsCopy.cnt; else delete l.nurturePending;
+  touchLead(l);
+  await saveLeads(); render();
+  queueLead(l.id,'state'); flushSyncQueue();   // শুধু AppState-এ "অপেক্ষমাণ" — Sheet1/শেষ মেসেজ/গোনা কিছুই নয়
+  if(leads.find(x=>x.id===detailId)) openDetail(detailId);
 });
 document.getElementById('d_todayBtn').addEventListener('click',async()=>{
   const l=leads.find(x=>x.id===detailId); if(!l) return;
+  /* ✓ = আজ যোগাযোগ হয়েছে। কপি করা মেসেজ থাকলে সেটা পাঠানো নিশ্চিত:
+     শেষ মেসেজ লগ (Column K), নির্ধারিত ফলো-আপ হলে ধাপ এগোয়, নার্চার হলে গোনা বাড়ে। */
+  let confirmed=null, sentMsg=false;
+  const pend=(typeof l.pendingMsg==='string' && l.pendingMsg.trim()) ? l.pendingMsg : null;
+  if((l.type||'লিড')!=='নিয়মিত কাস্টমার' && !isInactive(l) && l.order!=='আগ্রহী না'){
+    const ns=nurtureState(l);
+    const n=fuNext(l);
+    if(ns && ns.pending && pend===nurtureText(ns.cnt, l)){
+      confirmed=ns.cnt+1;
+      l.nurtureCount=confirmed; l.nurtureDate=todayISO();
+    } else if(pend && n.due && n.next && n.next!=='dormant' && pend===QR[n.next]){
+      l.fuStage=n.next; l.fuStageDate=todayISO();
+    }
+  }
+  if(pend){ l.lastMessage=pend; sentMsg=true; }
+  delete l.pendingMsg; delete l.nurturePending;
   l.last=todayISO(); await saveLeads(); render();
   syncLead(l,{silent:true});
   // refresh detail
   const raw=leads.find(x=>x.id===detailId);
   if(raw) openDetail(detailId);
-  toast('✓ আজকের তারিখ সেভ হয়েছে');
+  toast(confirmed ? '✓ নার্চার '+toBn(confirmed)+' পাঠানো হিসেবে সেভ হয়েছে'
+        : sentMsg ? '✓ মেসেজ পাঠানো হিসেবে সেভ হয়েছে' : '✓ আজকের তারিখ সেভ হয়েছে');
 });
 /* buyer উত্তর দিয়েছে = আজ যোগাযোগ হয়েছে (Last Contact আজ)।
    লিড হলে ফলো-আপ ধাপও নতুন করে শুরু; নিয়মিত কাস্টমারের ধাপ নেই, তাই শুধু তারিখ।
@@ -1483,7 +1850,8 @@ document.getElementById('d_replyBtn').addEventListener('click',async()=>{
   const wasInactive=isInactive(l);
   l.last=todayISO();
   if(wasInactive) l.activeState='অ্যাক্টিভ';
-  if(!isCust){ l.fuStage='card'; l.fuStageDate=todayISO(); }
+  if(!isCust){ l.fuStage='card'; l.fuStageDate=todayISO(); delete l.nurtureCount; delete l.nurtureDate; }
+  delete l.nurturePending; delete l.pendingMsg;
   await saveLeads(); render();
   syncLead(l,{silent:true});
   if(leads.find(x=>x.id===detailId)) openDetail(detailId);
@@ -1521,9 +1889,11 @@ document.getElementById('d_editBtn').addEventListener('click',()=>{
 });
 document.getElementById('d_delBtn').addEventListener('click',async()=>{
   if(!confirm('এই এন্ট্রিটা মুছে ফেলতে চাও?')) return;
-  dequeueLead(detailId);
-  leads=leads.filter(x=>x.id!==detailId);
+  const delId=detailId;
+  leads=leads.filter(x=>x.id!==delId);
   await saveLeads();
+  queueDelete(delId);          // Sheet1-এ কিছু যায় না (আগের মতো); AppState-এ শুধু "মোছা" চিহ্ন
+  flushSyncQueue();
   document.getElementById('detailOverlay').classList.remove('show');
   render();
   toast('🗑️ মুছে ফেলা হয়েছে');
@@ -1629,9 +1999,10 @@ async function saveForm(){
   if(!prevLead || pickedStage!==prevStage){
     if(pickedStage==='Unknown'){ data.fuStage=undefined; data.fuStageDate=undefined; }
     else { data.fuStage=pickedStage; data.fuStageDate=todayISO(); }
+    data.nurtureCount=undefined; data.nurtureDate=undefined; data.nurturePending=undefined; data.pendingMsg=undefined;   // ধাপ বদলালে নার্চার আর অপেক্ষমাণ মেসেজ নতুন করে
   }
   const customMsg=document.getElementById('f_lastmsg').value.trim();
-  if(customMsg) data.lastMessage=customMsg;
+  if(customMsg){ data.lastMessage=customMsg; data.pendingMsg=undefined; data.nurturePending=undefined; }
   let savedLead;
   if(id){
     const i=leads.findIndex(x=>x.id===id);
@@ -1659,8 +2030,11 @@ function closeAll(){
 ═══════════════════════════════════════════════ */
 function updateBkHint(){
   const t=localStorage.getItem(BK_KEY);
-  document.getElementById('backupHint').textContent=
-    t?'শেষ ব্যাকআপ: '+formatDate(t):'এখনো ব্যাকআপ নেওয়া হয়নি — নিয়ে রাখো';
+  const el=document.getElementById('backupHint');
+  const old = !t || (daysSince(t)!==null && daysSince(t)>7);   // Sheet-এ AppState থাকলেও ফাইল-ব্যাকআপ দ্বিতীয় নিরাপত্তা — সাপ্তাহিক
+  el.textContent = t ? 'শেষ ব্যাকআপ: '+formatDate(t)+(old?' — ৭ দিনের বেশি পুরোনো, আজ ব্যাকআপ নিন':'') : 'এখনো ব্যাকআপ নেওয়া হয়নি — নিয়ে রাখো';
+  el.style.color = old ? '#B45309' : '';
+  el.style.fontWeight = old ? '700' : '';
 }
 function doExport(){
   const json=JSON.stringify({app:'options-bd-tracker',exportedAt:todayISO(),leads},null,2);
@@ -1696,7 +2070,12 @@ function handleImport(e){
       const ok=confirm(`ব্যাকআপে ${inc.length} টা এন্ট্রি আছে। এখনকার ${leads.length} টা মুছে replace হবে। আগাবে?`);
       if(!ok) return;
       leads=inc.map(l=>({type:'লিড',...l}));
+      leads.forEach(l=>{ if(l && l.id){ touchLead(l); } });   // ফাইলটাই এখন সবচেয়ে নতুন — Sheet-এর AppState-ও এটা দিয়ে হালনাগাদ হবে
       await saveLeads(); render();
+      leads.forEach(l=>{ if(l && l.id) queueLead(l.id,'state',{force:true}); });
+      leadsLoaded=true;
+      try{ localStorage.setItem(STATE_SEED_KEY,String(Date.now())); }catch(e2){}
+      flushSyncQueue();
       toast('✅ ব্যাকআপ থেকে ফেরত আনা হয়েছে');
     }catch(err){toast('⚠️ ফাইলটা পড়া গেল না');}
   };
@@ -1729,6 +2108,8 @@ document.getElementById('formOverlay').addEventListener('click',e=>{if(e.target.
 document.getElementById('exportBtn').addEventListener('click',doExport);
 document.getElementById('importBtn').addEventListener('click',doImport);
 document.getElementById('importFile').addEventListener('change',handleImport);
+document.getElementById('sheetRestoreBtn').addEventListener('click',restoreFromSheet);
+document.getElementById('stateHint').addEventListener('click',()=>{ if(!stateKey()) enableSheetBackup(); });
 document.getElementById('searchBox').addEventListener('input',e=>{searchQ=e.target.value;render();});
 document.getElementById('lockNowBtn').addEventListener('click',lockApp);
 document.getElementById('changePinBtn').addEventListener('click',()=>{
