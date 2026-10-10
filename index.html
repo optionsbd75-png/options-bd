@@ -127,6 +127,9 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
 .s-cold .num{color:var(--orange);} .s-cold.active-filter{border-color:var(--orange);}
 .s-inact .num{color:#546E7A;} .s-inact.active-filter{border-color:#546E7A;}
 .s-inactdue .num{color:#00838F;} .s-inactdue.active-filter{border-color:#00838F;}
+.s-new .num{color:#B25E00;} .s-new.active-filter{border-color:#B25E00;}
+.s-reg .num{color:var(--green);} .s-reg.active-filter{border-color:var(--green);}
+.s-unk{grid-column:1/-1;} .s-unk .num{color:#546E7A;} .s-unk.active-filter{border-color:#546E7A;}
 
 /* ── Filter bar ── */
 .filter-bar{
@@ -420,6 +423,18 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
         <div class="num" id="sc7">০</div><div class="lab">🔁 রিঅর্ডারের সময়</div>
       </div>
     </div>
+    <div class="dash-title" style="margin-top:16px;">কাস্টমারের ধরন (অর্ডার সংখ্যা অনুযায়ী)</div>
+    <div class="dash-grid">
+      <div class="stat s-new" onclick="setFilter('ct:new','🆕 নতুন কাস্টমার (১ অর্ডার)')">
+        <div class="num" id="sc13">০</div><div class="lab">🆕 নতুন কাস্টমার (১ অর্ডার)</div>
+      </div>
+      <div class="stat s-reg" onclick="setFilter('ct:reg','⭐ নিয়মিত কাস্টমার (২+ অর্ডার)')">
+        <div class="num" id="sc14">০</div><div class="lab">⭐ নিয়মিত কাস্টমার (২+ অর্ডার)</div>
+      </div>
+      <div class="stat s-unk" onclick="setFilter('ct:unk','⚠️ অর্ডার সংখ্যা দেওয়া নেই')">
+        <div class="num" id="sc15">০</div><div class="lab">⚠️ অর্ডার সংখ্যা দেওয়া নেই — এডিটে দিন</div>
+      </div>
+    </div>
   </div>
 
   <div class="filter-bar" id="filterBar" style="display:none;">
@@ -580,7 +595,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
 
     <div class="field">
       <label>মোট অর্ডার সংখ্যা (কাস্টমার হলে) — ১ = নতুন কাস্টমার, ২+ = নিয়মিত</label>
-      <input type="number" id="f_ordercount" min="0" step="1" inputmode="numeric" placeholder="যেমন ১ বা ২">
+      <input type="text" id="f_ordercount" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="যেমন ১ বা ২">
     </div>
 
     <div class="field">
@@ -713,6 +728,8 @@ function isInactive(l){ return (l.activeState||'অ্যাক্টিভ')===
 /* কাস্টমার লেবেল (v7):
    ভেতরের মান type='নিয়মিত কাস্টমার' মানে "অন্তত একবার কিনেছে" — এটা বদলানো হয়নি, যাতে ফলো-আপ, রিঅর্ডার ও Sheet সিঙ্ক আগের মতো চলে।
    দেখানোর সময়: অর্ডার সংখ্যা ১ → নতুন কাস্টমার; ২+ → নিয়মিত কাস্টমার; সংখ্যা দেওয়া নেই → "অর্ডার সংখ্যা দিন"। */
+/* বাংলা অঙ্ক (০–৯) → ইংরেজি অঙ্ক, যাতে বাংলা কিবোর্ডে লেখা সংখ্যা/তারিখও কাজ করে */
+function bnDigits(s){ return String(s==null?'':s).replace(/[০-৯]/g,d=>String('০১২৩৪৫৬৭৮৯'.indexOf(d))); }
 function orderCountOf(l){ const n=Number(l&&l.orderCount); return Number.isFinite(n)&&n>0?Math.floor(n):0; }
 function isCustomer(l){ return (l&&l.type||'লিড')==='নিয়মিত কাস্টমার'; }
 function typeChip(l){
@@ -1612,6 +1629,9 @@ function render(){
   const cNew=custs.filter(l=>orderCountOf(l)===1).length;
   const cReg=custs.filter(l=>orderCountOf(l)>=2).length;
   const cUnk=custs.length-cNew-cReg;
+  document.getElementById('sc13').textContent=toBn(cNew);
+  document.getElementById('sc14').textContent=toBn(cReg);
+  document.getElementById('sc15').textContent=toBn(cUnk);
   document.getElementById('miniTotal').textContent=
     `মোট ${toBn(leads.length)} জন — লিড ${toBn(lc)}, কাস্টমার ${toBn(custs.length)} (নতুন ${toBn(cNew)}, নিয়মিত ${toBn(cReg)}`+(cUnk?`, সংখ্যা নেই ${toBn(cUnk)}`:'')+')';
 
@@ -1658,6 +1678,12 @@ function render(){
     working=working.filter(l=>l.activeState==='ইনঅ্যাক্টিভ'&&l.order!=='আগ্রহী না'&&l.days!==null&&l.days>=INACTIVE_DAYS);
   } else if(activeFilter==='reorder:due'){
     working=working.filter(isReorderDue);
+  } else if(activeFilter==='ct:new'){
+    working=working.filter(l=>isCustomer(l)&&orderCountOf(l)===1);
+  } else if(activeFilter==='ct:reg'){
+    working=working.filter(l=>isCustomer(l)&&orderCountOf(l)>=2);
+  } else if(activeFilter==='ct:unk'){
+    working=working.filter(l=>isCustomer(l)&&!orderCountOf(l));
   }
 
   // search
@@ -1896,7 +1922,7 @@ document.getElementById('d_orderBtn').addEventListener('click',async()=>{
   const next=orderCountOf(l)+1;
   const d=prompt('অর্ডারের তারিখ (বছর-মাস-দিন)। এই অর্ডারসহ মোট হবে '+toBn(next)+'টি।', todayISO());
   if(d===null) return;
-  const dt=d.trim();
+  const dt=bnDigits(d).trim();
   if(!validISO(dt)){ toast('⚠️ তারিখ এভাবে দিন: 2026-08-30'); return; }
   l.orderCount=next;
   if(!l.lastOrder || dt>=l.lastOrder) l.lastOrder=dt;
@@ -2042,10 +2068,10 @@ async function saveForm(){
     notes:document.getElementById('f_notes').value.trim(),
     lastOrder:document.getElementById('f_lastorder').value
   };
-  const ocRaw=document.getElementById('f_ordercount').value.trim();
+  const ocRaw=bnDigits(document.getElementById('f_ordercount').value).trim();
   if(ocRaw!==''){
-    const oc=Math.floor(Number(ocRaw));
-    if(!Number.isFinite(oc)||oc<0){ toast('⚠️ অর্ডার সংখ্যা ঠিক নয়'); return; }
+    if(!/^\d{1,4}$/.test(ocRaw)){ toast('⚠️ অর্ডার সংখ্যায় শুধু অঙ্ক দিন (যেমন ১ বা 2)'); return; }
+    const oc=Number(ocRaw);
     if(oc>0 && pendingType!=='নিয়মিত কাস্টমার'){ toast('⚠️ অর্ডার সংখ্যা দিলে ধরন "কাস্টমার" বাছুন'); return; }
     data.orderCount=oc;
   } else {
