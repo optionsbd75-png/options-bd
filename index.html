@@ -578,6 +578,11 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
         </select>
       </div>
       <div class="field">
+        <label>📅 পরের ফলো-আপের তারিখ (ঐচ্ছিক — নিজে ঠিক করতে চাইলে)</label>
+        <input type="date" id="f_funext">
+        <div style="font-size:11px;color:var(--muted);margin-top:5px;">খালি রাখলে App নিজে হিসাব করবে। তারিখ দিলে সেদিনই পরের ফলো-আপ দেখাবে। ধাপ এগোলে বা উত্তর এলে তারিখটা নিজে মুছে যায়।</div>
+      </div>
+      <div class="field">
         <label>অর্ডার স্ট্যাটাস</label>
         <select id="f_order">
           <option>অর্ডার হয়নি</option>
@@ -641,6 +646,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
       <button class="dbtn dbtn-copy" id="d_copyNumBtn">📋 নম্বর কপি</button>
       <button class="dbtn dbtn-today" id="d_todayBtn">✓ আজ যোগাযোগ হয়েছে</button>
       <button class="dbtn dbtn-today" id="d_replyBtn">↩ উত্তর দিয়েছে</button>
+      <button class="dbtn dbtn-today" id="d_nextBtn">📅 পরের ফলো-আপের দিন ঠিক করো</button>
       <button class="dbtn dbtn-today" id="d_orderBtn">🛒 নতুন অর্ডার হয়েছে</button>
       <button class="dbtn dbtn-inact" id="d_inactBtn">🔵 ইনঅ্যাক্টিভ করো</button>
       <button class="dbtn dbtn-reactivate" id="d_reactBtn" style="display:none;">🟢 অ্যাক্টিভ করো (ফেরাও)</button>
@@ -768,6 +774,7 @@ const FU_ORDER = ['card','chobi','phone','chobi2','chobi3'];
 const FU_GAP   = {card:2, chobi:2, phone:3, chobi2:5};          // এই ধাপের পর কত দিন অপেক্ষা
 const FU_NEXT  = {card:'chobi', chobi:'phone', phone:'chobi2', chobi2:'chobi3'};
 const FU_LABEL = {Unknown:'জানা নেই', none:'দামসহ ছবি (কার্ড) এখনো পাঠানো হয়নি', card:'দামসহ ছবি (কার্ড) পাঠানো হয়েছে', chobi:'১ম ফলো-আপ মেসেজ পাঠানো হয়েছে', phone:'ফোন করা হয়েছে', chobi2:'২য় ফলো-আপ মেসেজ পাঠানো হয়েছে', chobi3:'শেষ ফলো-আপ মেসেজ পাঠানো হয়েছে', dormant:'Dormant — ফলো-আপ শেষ (এখন শুধু মাসিক নার্চার)'};
+const FU_STEP_DONE = {card:'দামসহ ছবি (কার্ড) পাঠানো হয়েছে', chobi:'১ম ফলো-আপ মেসেজ পাঠানো হয়েছে', phone:'ফোন করা হয়েছে', chobi2:'২য় ফলো-আপ মেসেজ পাঠানো হয়েছে', chobi3:'শেষ ফলো-আপ মেসেজ পাঠানো হয়েছে'};
 const FU_NEXT_LABEL = {chobi:'১ম ফলো-আপ মেসেজ', phone:'ফোন করা', chobi2:'২য় ফলো-আপ মেসেজ', chobi3:'শেষ ফলো-আপ মেসেজ'};
 function fuStageOf(l){ return l.fuStage || 'Unknown'; }   // পুরোনো লিড: field নেই = Unknown, অনুমান নয়
 function daysBetween(fromIso){ return daysSince(fromIso); }
@@ -776,8 +783,17 @@ function fuNext(l){
   const st = fuStageOf(l);
   if (st==='Unknown' || st==='none') return {stage:st, next:null, due:false};
   if (st==='chobi3' || st==='dormant') return {stage:st, next:'dormant', due:false};
-  const elapsed = l.fuStageDate ? daysBetween(l.fuStageDate) : null;
-  if (elapsed===null) return {stage:'Unknown', next:null, due:false};
+  /* v10: হাতে বসানো "পরের ফলো-আপের তারিখ" থাকলে সেটাই চূড়ান্ত (Pipedrive-এর next activity date-এর মতো) */
+  if (validISO(l.fuNextDate)){
+    const toNext = daysBetween(l.fuNextDate);   // আজ সেই তারিখ বা পরে হলে ০ বা বেশি
+    return {stage:st, next:FU_NEXT[st], due: toNext>=0, wait: Math.max(0,-toNext), elapsed:null, manual:true};
+  }
+  if (!l.fuStageDate) return {stage:'Unknown', next:null, due:false};
+  /* v9: অপেক্ষা গোনা হয় ধাপের তারিখ আর শেষ যোগাযোগ — দুটোর যেটা পরে, সেখান থেকে।
+     ফলে অন্য কোনো মেসেজ/কথা হলেও (✓ চাপলে) সেদিন থেকে আবার অপেক্ষা — একই দিনে বাড়তি তাগাদা নয় (SOP §10)। */
+  const base = latestISO([l.fuStageDate, l.last]) || l.fuStageDate;
+  const elapsed = daysBetween(base);
+  if (elapsed===null || isNaN(elapsed)) return {stage:'Unknown', next:null, due:false};
   const gap = FU_GAP[st];
   return {stage:st, next:FU_NEXT[st], due: elapsed>=gap, wait: Math.max(0,gap-elapsed), elapsed};
 }
@@ -1811,6 +1827,8 @@ function openDetail(id){
     : (FU_LABEL[fuStageOf(l)]||'—')+(l.fuStageDate?' · '+formatDate(l.fuStageDate):'')
       + (nurtureState(l) ? ' · নার্চার '+toBn(nurtureCnt(l))+'/'+toBn(NURTURE_MAX)+' পাঠানো'+(validISO(l.nurtureDate)?' (শেষ: '+formatDate(l.nurtureDate)+')':'')
          + (nurtureState(l).pending ? ' · নার্চার '+toBn(nurtureCnt(l)+1)+' কপি হয়েছে, পাঠানো নিশ্চিত হয়নি' : '') : '');
+  if(!isCustD && validISO(l.fuNextDate)) document.getElementById('d_fustage').textContent += ' · 📅 পরের ফলো-আপ: '+formatDate(l.fuNextDate)+' (হাতে ঠিক করা)';
+  document.getElementById('d_nextBtn').style.display=isCustD?'none':'';
   document.getElementById('d_lastOrder').textContent=l.lastOrder?formatDate(l.lastOrder):(isCustD?'দেওয়া নেই — এডিটে তারিখ দিন':'—');
   const ocD=orderCountOf(l);
   document.getElementById('d_orderCount').textContent=ocD?toBn(ocD)+'টি':(isCustD?'দেওয়া নেই — এডিটে সংখ্যা দিন':'—');
@@ -1870,7 +1888,7 @@ document.getElementById('d_todayBtn').addEventListener('click',async()=>{
   const l=leads.find(x=>x.id===detailId); if(!l) return;
   /* ✓ = আজ যোগাযোগ হয়েছে। কপি করা মেসেজ থাকলে সেটা পাঠানো নিশ্চিত:
      শেষ মেসেজ লগ (Column K), নির্ধারিত ফলো-আপ হলে ধাপ এগোয়, নার্চার হলে গোনা বাড়ে। */
-  let confirmed=null, sentMsg=false;
+  let confirmed=null, sentMsg=false, advanced=null;
   const pend=(typeof l.pendingMsg==='string' && l.pendingMsg.trim()) ? l.pendingMsg : null;
   if((l.type||'লিড')!=='নিয়মিত কাস্টমার' && !isInactive(l) && l.order!=='আগ্রহী না'){
     const ns=nurtureState(l);
@@ -1879,7 +1897,15 @@ document.getElementById('d_todayBtn').addEventListener('click',async()=>{
       confirmed=ns.cnt+1;
       l.nurtureCount=confirmed; l.nurtureDate=todayISO();
     } else if(pend && n.due && n.next && n.next!=='dormant' && pend===QR[n.next]){
-      l.fuStage=n.next; l.fuStageDate=todayISO();
+      l.fuStage=n.next; l.fuStageDate=todayISO(); delete l.fuNextDate; advanced=n.next;
+    } else {
+      /* v10: App-এর বাইরের মেসেজ বা কল — ধাপ এগোবে কিনা আপনিই ঠিক করবেন */
+      const st=fuStageOf(l);
+      const nx = st==='none' ? 'card' : (FU_NEXT[st]||null);
+      if(nx){
+        const ok=confirm('এই যোগাযোগকে কি পরের ফলো-আপ ধাপ হিসেবে গুনব?\n\n👉 '+FU_STEP_DONE[nx]+'\n\nOK = হ্যাঁ, ধাপ এগোবে\nCancel = না, শুধু আজ যোগাযোগ হয়েছে (ধাপ একই থাকবে)');
+        if(ok){ l.fuStage=nx; l.fuStageDate=todayISO(); delete l.fuNextDate; advanced=nx; delete l.nurtureCount; delete l.nurtureDate; }
+      }
     }
   }
   if(pend){ l.lastMessage=pend; sentMsg=true; }
@@ -1890,6 +1916,7 @@ document.getElementById('d_todayBtn').addEventListener('click',async()=>{
   const raw=leads.find(x=>x.id===detailId);
   if(raw) openDetail(detailId);
   toast(confirmed ? '✓ নার্চার '+toBn(confirmed)+' পাঠানো হিসেবে সেভ হয়েছে'
+        : advanced ? '✓ ধাপ সেভ: '+FU_STEP_DONE[advanced]
         : sentMsg ? '✓ মেসেজ পাঠানো হিসেবে সেভ হয়েছে' : '✓ আজকের তারিখ সেভ হয়েছে');
 });
 /* buyer উত্তর দিয়েছে = আজ যোগাযোগ হয়েছে (Last Contact আজ)।
@@ -1902,7 +1929,7 @@ document.getElementById('d_replyBtn').addEventListener('click',async()=>{
   const wasInactive=isInactive(l);
   l.last=todayISO();
   if(wasInactive) l.activeState='অ্যাক্টিভ';
-  if(!isCust){ l.fuStage='card'; l.fuStageDate=todayISO(); delete l.nurtureCount; delete l.nurtureDate; }
+  if(!isCust){ l.fuStage='card'; l.fuStageDate=todayISO(); delete l.nurtureCount; delete l.nurtureDate; delete l.fuNextDate; }
   delete l.nurturePending; delete l.pendingMsg;
   await saveLeads(); render();
   syncLead(l,{silent:true});
@@ -1912,6 +1939,22 @@ document.getElementById('d_replyBtn').addEventListener('click',async()=>{
   if(wasInactive) msg += '। আবার অ্যাক্টিভ করা হলো';
   if(l.order==='আগ্রহী না') msg += '। স্ট্যাটাস এখনো "আগ্রহী না" — আগ্রহ থাকলে এডিটে বদলান';
   toast(msg);
+});
+/* 📅 পরের ফলো-আপের দিন হাতে ঠিক করা (খালি দিলে মুছে যায়, App আবার নিজে হিসাব করে) */
+document.getElementById('d_nextBtn').addEventListener('click',async()=>{
+  const l=leads.find(x=>x.id===detailId); if(!l) return;
+  const st=fuStageOf(l);
+  if(st==='Unknown'||st==='none'||st==='chobi3'||st==='dormant'){ toast('⚠️ এই ধাপে পরের ফলো-আপ নেই — আগে এডিটে ফলো-আপ ধাপ ঠিক করুন'); return; }
+  const d=prompt('পরের ফলো-আপ কবে? (বছর-মাস-দিন, যেমন 2026-10-15)\nখালি রেখে OK চাপলে হাতে বসানো তারিখ মুছে যাবে।', validISO(l.fuNextDate)?l.fuNextDate:todayISO());
+  if(d===null) return;
+  const dt=bnDigits(d).trim();
+  if(dt===''){ delete l.fuNextDate; }
+  else if(!validISO(dt)){ toast('⚠️ তারিখ এভাবে দিন: 2026-10-15'); return; }
+  else l.fuNextDate=dt;
+  await saveLeads(); render();
+  syncLead(l,{silent:true});
+  if(leads.find(x=>x.id===detailId)) openDetail(detailId);
+  toast(l.fuNextDate?'📅 পরের ফলো-আপ: '+formatDate(l.fuNextDate):'📅 হাতে বসানো তারিখ মুছে গেছে — App নিজে হিসাব করবে');
 });
 /* 🛒 নতুন অর্ডার: অর্ডার সংখ্যা +১, শেষ অর্ডারের তারিখ, অর্ডার = কনভার্ট হয়েছে।
    লিড হলে কাস্টমার হয়ে যায় (প্রথম অর্ডার → নতুন কাস্টমার)। আগের সংখ্যা জানা না থাকলে আগে এডিটে দিতে হবে। */
@@ -1928,6 +1971,7 @@ document.getElementById('d_orderBtn').addEventListener('click',async()=>{
   if(!l.lastOrder || dt>=l.lastOrder) l.lastOrder=dt;
   l.order='কনভার্ট হয়েছে';
   if(!wasCust) l.type='নিয়মিত কাস্টমার';
+  delete l.fuNextDate;
   if(isInactive(l)) l.activeState='অ্যাক্টিভ';
   if(!l.last || dt>l.last) l.last=dt;
   delete l.nurturePending; delete l.pendingMsg;
@@ -2003,7 +2047,7 @@ function openAdd(){
   pickType(activeTab==='নিয়মিত কাস্টমার'?'নিয়মিত কাস্টমার':'লিড');
   pickSource('Facebook');
   pickActive('অ্যাক্টিভ');
-  ['f_name','f_owner','f_phone','f_area','f_district','f_campaign','f_product','f_notes','f_lastorder','f_ordercount','f_lastmsg'].forEach(id=>document.getElementById(id).value='');
+  ['f_name','f_owner','f_phone','f_area','f_district','f_campaign','f_product','f_notes','f_lastorder','f_ordercount','f_funext','f_lastmsg'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f_first').value=todayISO();
   document.getElementById('f_last').value=todayISO();
   document.getElementById('f_price').value='না';
@@ -2036,6 +2080,7 @@ function openEdit(id){
   document.getElementById('f_ordercount').value=orderCountOf(l)||'';
   document.getElementById('f_lastmsg').value='';
   document.getElementById('f_fustage').value=fuStageOf(l);
+  document.getElementById('f_funext').value=validISO(l.fuNextDate)?l.fuNextDate:'';
   document.getElementById('formOverlay').classList.add('show');
 }
 
@@ -2079,6 +2124,8 @@ async function saveForm(){
     const hadOc=id && orderCountOf(leads.find(x=>x.id===id));
     data.orderCount=hadOc?0:undefined;
   }
+  const fnx=document.getElementById('f_funext').value;
+  data.fuNextDate=validISO(fnx)?fnx:undefined;
   /* F-1: ধাপ হাতে বদলালে শুধু তখনই fuStage/fuStageDate লেখা হয় */
   const pickedStage=document.getElementById('f_fustage').value;
   const prevLead=id?leads.find(x=>x.id===id):null;
