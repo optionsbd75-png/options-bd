@@ -180,6 +180,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
 .chip{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:99px;}
 .chip-lead{background:var(--blue-bg);color:var(--blue);}
 .chip-cust{background:var(--green-bg);color:var(--green);}
+.chip-new{background:#FFF3E0;color:#B25E00;}
 .chip-src{background:#EDE7F6;color:#4527A0;}
 .chip-inact{background:#ECEFF1;color:#546E7A;}
 .badge{font-size:11px;font-weight:700;padding:4px 9px;border-radius:99px;white-space:nowrap;flex-shrink:0;}
@@ -363,7 +364,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
 
   <div class="tabs">
     <button class="tab on" id="tabLead" onclick="setTab('লিড')">লিড</button>
-    <button class="tab" id="tabCust" onclick="setTab('নিয়মিত কাস্টমার')">নিয়মিত কাস্টমার</button>
+    <button class="tab" id="tabCust" onclick="setTab('নিয়মিত কাস্টমার')">কাস্টমার</button>
     <button class="tab" id="tabAll" onclick="setTab('সব')">সব</button>
   </div>
   <div class="mini-total" id="miniTotal">—</div>
@@ -407,7 +408,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
 
   <!-- Dashboard: Customer -->
   <div id="dashCust" class="dash-section" style="display:none;">
-    <div class="dash-title">আজকের কাজ — নিয়মিত কাস্টমার</div>
+    <div class="dash-title">আজকের কাজ — কাস্টমার</div>
     <div class="dash-grid">
       <div class="stat s-check" onclick="setFilter('a:খোঁজ নিন','🟡 খোঁজ নেওয়ার সময়')">
         <div class="num" id="sc5">০</div><div class="lab">🟡 খোঁজ নেওয়ার সময়</div>
@@ -464,7 +465,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
       <label>ধরন</label>
       <div class="seg" id="typeSeg">
         <button type="button" data-t="লিড" class="on" onclick="pickType('লিড')">লিড</button>
-        <button type="button" data-t="নিয়মিত কাস্টমার" onclick="pickType('নিয়মিত কাস্টমার')">নিয়মিত কাস্টমার</button>
+        <button type="button" data-t="নিয়মিত কাস্টমার" onclick="pickType('নিয়মিত কাস্টমার')">কাস্টমার (কিনেছে)</button>
       </div>
     </div>
 
@@ -578,6 +579,11 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
     </div>
 
     <div class="field">
+      <label>মোট অর্ডার সংখ্যা (কাস্টমার হলে) — ১ = নতুন কাস্টমার, ২+ = নিয়মিত</label>
+      <input type="number" id="f_ordercount" min="0" step="1" inputmode="numeric" placeholder="যেমন ১ বা ২">
+    </div>
+
+    <div class="field">
       <label>নোট</label>
       <textarea id="f_notes" placeholder="যেকোনো গুরুত্বপূর্ণ তথ্য লিখে রাখো…"></textarea>
     </div>
@@ -620,6 +626,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
       <button class="dbtn dbtn-copy" id="d_copyNumBtn">📋 নম্বর কপি</button>
       <button class="dbtn dbtn-today" id="d_todayBtn">✓ আজ যোগাযোগ হয়েছে</button>
       <button class="dbtn dbtn-today" id="d_replyBtn">↩ উত্তর দিয়েছে</button>
+      <button class="dbtn dbtn-today" id="d_orderBtn">🛒 নতুন অর্ডার হয়েছে</button>
       <button class="dbtn dbtn-inact" id="d_inactBtn">🔵 ইনঅ্যাক্টিভ করো</button>
       <button class="dbtn dbtn-reactivate" id="d_reactBtn" style="display:none;">🟢 অ্যাক্টিভ করো (ফেরাও)</button>
     </div>
@@ -637,6 +644,7 @@ h1{font-size:19px;margin:12px 0 2px;font-weight:800;}
       <div class="detail-row"><span class="dk">প্রথম যোগাযোগ</span><span class="dv" id="d_first">—</span></div>
       <div class="detail-row"><span class="dk">শেষ যোগাযোগ</span><span class="dv" id="d_last">—</span></div>
       <div class="detail-row" id="d_lastOrderRow"><span class="dk">শেষ অর্ডার</span><span class="dv" id="d_lastOrder">—</span></div>
+      <div class="detail-row"><span class="dk">মোট অর্ডার</span><span class="dv" id="d_orderCount">—</span></div>
       <div class="detail-row"><span class="dk">শেষ পাঠানো মেসেজ</span><span class="dv" id="d_lastMsg" style="white-space:normal;font-weight:400;">—</span></div>
     </div>
 
@@ -701,6 +709,19 @@ const esc = s => !s ? '' : String(s).replace(/[&<>"']/g,
 
 /* helper: এই লিড ইনঅ্যাক্টিভ কিনা */
 function isInactive(l){ return (l.activeState||'অ্যাক্টিভ')==='ইনঅ্যাক্টিভ'; }
+
+/* কাস্টমার লেবেল (v7):
+   ভেতরের মান type='নিয়মিত কাস্টমার' মানে "অন্তত একবার কিনেছে" — এটা বদলানো হয়নি, যাতে ফলো-আপ, রিঅর্ডার ও Sheet সিঙ্ক আগের মতো চলে।
+   দেখানোর সময়: অর্ডার সংখ্যা ১ → নতুন কাস্টমার; ২+ → নিয়মিত কাস্টমার; সংখ্যা দেওয়া নেই → "অর্ডার সংখ্যা দিন"। */
+function orderCountOf(l){ const n=Number(l&&l.orderCount); return Number.isFinite(n)&&n>0?Math.floor(n):0; }
+function isCustomer(l){ return (l&&l.type||'লিড')==='নিয়মিত কাস্টমার'; }
+function typeChip(l){
+  if(!isCustomer(l)) return `<span class="chip chip-lead">${esc(l.type||'লিড')}</span>`;
+  const n=orderCountOf(l);
+  if(n===1) return `<span class="chip chip-new">নতুন কাস্টমার · ১ অর্ডার</span>`;
+  if(n>=2) return `<span class="chip chip-cust">নিয়মিত কাস্টমার · ${toBn(n)} অর্ডার</span>`;
+  return `<span class="chip chip-cust">কাস্টমার</span><span class="chip chip-new">⚠️ অর্ডার সংখ্যা দিন</span>`;
+}
 
 function daysSince(iso){
   if(!iso) return null;
@@ -1223,7 +1244,7 @@ function buildSyncParams(lead,kind){
     ownerName: lead.owner||'',
     phone: cleanPhone,
     address: [lead.area,lead.district].filter(Boolean).join(', ')||'',
-    status: lead.type==='নিয়মিত কাস্টমার'?'Regular Customer':'New Lead',
+    status: lead.type==='নিয়মিত কাস্টমার'?(orderCountOf(lead)===1?'New Customer':'Regular Customer'):'New Lead',
     lastContact: lead.last||'',
     notes: lead.notes||'',
     leadSource: lead.source||'',
@@ -1587,9 +1608,12 @@ function render(){
   document.getElementById('sc7').textContent=toBn(reorderCount);
 
   const lc=leads.filter(l=>(l.type||'লিড')==='লিড').length;
-  const cc=leads.filter(l=>l.type==='নিয়মিত কাস্টমার').length;
+  const custs=leads.filter(isCustomer);
+  const cNew=custs.filter(l=>orderCountOf(l)===1).length;
+  const cReg=custs.filter(l=>orderCountOf(l)>=2).length;
+  const cUnk=custs.length-cNew-cReg;
   document.getElementById('miniTotal').textContent=
-    `মোট ${toBn(leads.length)} জন — লিড ${toBn(lc)}, নিয়মিত কাস্টমার ${toBn(cc)}`;
+    `মোট ${toBn(leads.length)} জন — লিড ${toBn(lc)}, কাস্টমার ${toBn(custs.length)} (নতুন ${toBn(cNew)}, নিয়মিত ${toBn(cReg)}`+(cUnk?`, সংখ্যা নেই ${toBn(cUnk)}`:'')+')';
 
   // dashboard visibility
   const showLead=activeTab==='লিড'||activeTab==='সব';
@@ -1650,7 +1674,7 @@ function render(){
   // list title
   const lt=document.getElementById('listTitle');
   lt.textContent=(activeFilter==='all'&&!searchQ.trim())
-    ?(activeTab==='সব'?'সব এন্ট্রি':activeTab)
+    ?(activeTab==='সব'?'সব এন্ট্রি':activeTab==='নিয়মিত কাস্টমার'?'কাস্টমার':activeTab)
     :`${toBn(working.length)} টা পাওয়া গেছে`;
 
   // sort: crimson → orange → yellow → green → teal(ইনঅ্যাক্টিভ due) → slate(ইনঅ্যাক্টিভ) → gray(বাদ)
@@ -1684,7 +1708,7 @@ function render(){
           <div class="lcard-name">${esc(l.name)||'নাম নেই'}</div>
           <div class="lcard-phone">${l.owner?esc(l.owner)+' · ':''}${esc(l.phone)||'—'}${l.area?` · ${esc(l.area)}`:''}${l.district&&l.district!==l.area?`, ${esc(l.district)}`:''}</div>
           <div class="lcard-chips">
-            <span class="chip ${l.type==='নিয়মিত কাস্টমার'?'chip-cust':'chip-lead'}">${esc(l.type)}</span>
+            ${typeChip(l)}
             ${srcChip}${inactChip}
           </div>
         </div>
@@ -1743,7 +1767,7 @@ function openDetail(id){
   const chips=document.getElementById('d_chips');
   const srcChip=l.source?`<span class="chip chip-src">${esc(l.source)}</span>`:'';
   const inactChip=(l.activeState==='ইনঅ্যাক্টিভ'&&l.order!=='আগ্রহী না')?`<span class="chip chip-inact">🔵 ইনঅ্যাক্টিভ</span>`:'';
-  chips.innerHTML=`<span class="chip ${l.type==='নিয়মিত কাস্টমার'?'chip-cust':'chip-lead'}">${esc(l.type)}</span>${srcChip}${inactChip}`;
+  chips.innerHTML=`${typeChip(l)}${srcChip}${inactChip}`;
 
   document.getElementById('d_owner').textContent=l.owner||'—';
   document.getElementById('d_area').textContent=
@@ -1757,11 +1781,13 @@ function openDetail(id){
   document.getElementById('d_last').textContent=formatDate(l.last);
   const isCustD=l.type==='নিয়মিত কাস্টমার';
   document.getElementById('d_fustage').textContent=isCustD
-    ? 'প্রযোজ্য নয় (নিয়মিত কাস্টমার)'
+    ? 'প্রযোজ্য নয় (কাস্টমার)'
     : (FU_LABEL[fuStageOf(l)]||'—')+(l.fuStageDate?' · '+formatDate(l.fuStageDate):'')
       + (nurtureState(l) ? ' · নার্চার '+toBn(nurtureCnt(l))+'/'+toBn(NURTURE_MAX)+' পাঠানো'+(validISO(l.nurtureDate)?' (শেষ: '+formatDate(l.nurtureDate)+')':'')
          + (nurtureState(l).pending ? ' · নার্চার '+toBn(nurtureCnt(l)+1)+' কপি হয়েছে, পাঠানো নিশ্চিত হয়নি' : '') : '');
   document.getElementById('d_lastOrder').textContent=l.lastOrder?formatDate(l.lastOrder):(isCustD?'দেওয়া নেই — এডিটে তারিখ দিন':'—');
+  const ocD=orderCountOf(l);
+  document.getElementById('d_orderCount').textContent=ocD?toBn(ocD)+'টি':(isCustD?'দেওয়া নেই — এডিটে সংখ্যা দিন':'—');
   const lm=(l.lastMessage||'').trim();
   document.getElementById('d_lastMsg').textContent=lm?(lm.length>70?lm.slice(0,70)+'…':lm):'—';
 
@@ -1861,6 +1887,29 @@ document.getElementById('d_replyBtn').addEventListener('click',async()=>{
   if(l.order==='আগ্রহী না') msg += '। স্ট্যাটাস এখনো "আগ্রহী না" — আগ্রহ থাকলে এডিটে বদলান';
   toast(msg);
 });
+/* 🛒 নতুন অর্ডার: অর্ডার সংখ্যা +১, শেষ অর্ডারের তারিখ, অর্ডার = কনভার্ট হয়েছে।
+   লিড হলে কাস্টমার হয়ে যায় (প্রথম অর্ডার → নতুন কাস্টমার)। আগের সংখ্যা জানা না থাকলে আগে এডিটে দিতে হবে। */
+document.getElementById('d_orderBtn').addEventListener('click',async()=>{
+  const l=leads.find(x=>x.id===detailId); if(!l) return;
+  const wasCust=isCustomer(l);
+  if(wasCust && !orderCountOf(l)){ toast('⚠️ আগে এডিটে "মোট অর্ডার সংখ্যা" দিন (এই অর্ডার ছাড়া), তারপর এই বোতাম'); return; }
+  const next=orderCountOf(l)+1;
+  const d=prompt('অর্ডারের তারিখ (বছর-মাস-দিন)। এই অর্ডারসহ মোট হবে '+toBn(next)+'টি।', todayISO());
+  if(d===null) return;
+  const dt=d.trim();
+  if(!validISO(dt)){ toast('⚠️ তারিখ এভাবে দিন: 2026-08-30'); return; }
+  l.orderCount=next;
+  if(!l.lastOrder || dt>=l.lastOrder) l.lastOrder=dt;
+  l.order='কনভার্ট হয়েছে';
+  if(!wasCust) l.type='নিয়মিত কাস্টমার';
+  if(isInactive(l)) l.activeState='অ্যাক্টিভ';
+  if(!l.last || dt>l.last) l.last=dt;
+  delete l.nurturePending; delete l.pendingMsg;
+  await saveLeads(); render();
+  syncLead(l,{silent:true});
+  if(leads.find(x=>x.id===detailId)) openDetail(detailId);
+  toast(next===1?'🛒 প্রথম অর্ডার সেভ — এখন "নতুন কাস্টমার"':'🛒 অর্ডার সেভ — মোট '+toBn(next)+'টি, "নিয়মিত কাস্টমার"');
+});
 /* ইনঅ্যাক্টিভ করার বোতাম */
 document.getElementById('d_inactBtn').addEventListener('click',async()=>{
   const l=leads.find(x=>x.id===detailId); if(!l) return;
@@ -1928,7 +1977,7 @@ function openAdd(){
   pickType(activeTab==='নিয়মিত কাস্টমার'?'নিয়মিত কাস্টমার':'লিড');
   pickSource('Facebook');
   pickActive('অ্যাক্টিভ');
-  ['f_name','f_owner','f_phone','f_area','f_district','f_campaign','f_product','f_notes','f_lastorder','f_lastmsg'].forEach(id=>document.getElementById(id).value='');
+  ['f_name','f_owner','f_phone','f_area','f_district','f_campaign','f_product','f_notes','f_lastorder','f_ordercount','f_lastmsg'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f_first').value=todayISO();
   document.getElementById('f_last').value=todayISO();
   document.getElementById('f_price').value='না';
@@ -1958,6 +2007,7 @@ function openEdit(id){
   document.getElementById('f_order').value=l.order||'অর্ডার হয়নি';
   document.getElementById('f_notes').value=l.notes||'';
   document.getElementById('f_lastorder').value=l.lastOrder||'';
+  document.getElementById('f_ordercount').value=orderCountOf(l)||'';
   document.getElementById('f_lastmsg').value='';
   document.getElementById('f_fustage').value=fuStageOf(l);
   document.getElementById('formOverlay').classList.add('show');
@@ -1992,6 +2042,17 @@ async function saveForm(){
     notes:document.getElementById('f_notes').value.trim(),
     lastOrder:document.getElementById('f_lastorder').value
   };
+  const ocRaw=document.getElementById('f_ordercount').value.trim();
+  if(ocRaw!==''){
+    const oc=Math.floor(Number(ocRaw));
+    if(!Number.isFinite(oc)||oc<0){ toast('⚠️ অর্ডার সংখ্যা ঠিক নয়'); return; }
+    if(oc>0 && pendingType!=='নিয়মিত কাস্টমার'){ toast('⚠️ অর্ডার সংখ্যা দিলে ধরন "কাস্টমার" বাছুন'); return; }
+    data.orderCount=oc;
+  } else {
+    /* খালি রাখলে: আগে সংখ্যা থাকলে ০ পাঠানো হয় (যাতে Sheet/AppState-এও মুছে যায়), না থাকলে কিছু যোগ হয় না */
+    const hadOc=id && orderCountOf(leads.find(x=>x.id===id));
+    data.orderCount=hadOc?0:undefined;
+  }
   /* F-1: ধাপ হাতে বদলালে শুধু তখনই fuStage/fuStageDate লেখা হয় */
   const pickedStage=document.getElementById('f_fustage').value;
   const prevLead=id?leads.find(x=>x.id===id):null;
